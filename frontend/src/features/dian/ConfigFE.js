@@ -29,7 +29,7 @@ function PlanCardFE({ plan, onSuccess }) {
     <Card elevation={0} sx={{
       borderRadius: 3, p: 2.5, height: '100%', display: 'flex', flexDirection: 'column',
       border: `1.5px solid ${plan.incluye_fe !== false ? alpha('#059669', 0.4) : alpha(theme.palette.divider, 1)}`,
-      transition: 'all 0.2s',
+      transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
       '&:hover': { borderColor: alpha(ACCENT, 0.5), boxShadow: `0 4px 20px ${alpha(ACCENT, 0.1)}` },
     }}>
       <Typography fontSize={12} fontWeight={800} color={ACCENT} textTransform="uppercase" mb={1} letterSpacing={0.8}>

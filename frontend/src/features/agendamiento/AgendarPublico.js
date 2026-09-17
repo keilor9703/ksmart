@@ -180,7 +180,7 @@ function AgendarPublicoInner() {
                         const sel = servicio?.id === s.id;
                         return (
                           <Paper key={s.id} onClick={() => setServicio(s)} elevation={0} sx={{
-                            borderRadius: 3, cursor: 'pointer', transition: 'all .15s',
+                            borderRadius: 3, cursor: 'pointer', transition: 'transform .15s, box-shadow .15s, background-color .15s, border-color .15s, color .15s, opacity .15s',
                             border: '2px solid', borderColor: sel ? TEAL : 'divider',
                             bgcolor: sel ? `${TEAL}0A` : '#fff',
                             '&:hover': { borderColor: TEAL },

@@ -95,7 +95,7 @@ const ModulosEmpresaDialog = ({ open, handleClose, empresa, onModulosUpdated }) 
                 p: 1, borderRadius: 2, 
                 border: '1px solid', borderColor: (modulosActivos || []).includes(modulo.path) ? `${ACCENT}50` : 'divider',
                 bgcolor: (modulosActivos || []).includes(modulo.path) ? `${ACCENT}08` : 'transparent',
-                transition: 'all 0.2s'
+                transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s'
               }}>
               <FormControlLabel
                 control={

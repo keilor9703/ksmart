@@ -191,7 +191,7 @@ const KpiCard = ({ title, value, icon, color, sub, onClick, loading, delta, form
         ? '0 2px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)'
         : '0 2px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)',
       cursor: onClick ? 'pointer' : 'default',
-      transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)',
+      transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1), box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), background-color 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.25s cubic-bezier(0.4,0,0.2,1), color 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.25s cubic-bezier(0.4,0,0.2,1)',
       width: '100%', boxSizing: 'border-box',
       bgcolor: 'background.paper',
       animation: `${fadeInUp} 0.5s ${delay}s ease both`,
@@ -577,7 +577,7 @@ function WelcomeOverlay({ user, tipoNegocio, onDismiss }) {
                 width: i === step ? 20 : 6,
                 borderRadius: 3,
                 bgcolor: i === step ? biz.color : (i < step ? `${GREEN}60` : 'action.hover'),
-                transition: 'all 0.35s cubic-bezier(0.4,0,0.2,1)',
+                transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1), box-shadow 0.35s cubic-bezier(0.4,0,0.2,1), background-color 0.35s cubic-bezier(0.4,0,0.2,1), border-color 0.35s cubic-bezier(0.4,0,0.2,1), color 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s cubic-bezier(0.4,0,0.2,1)',
               }} />
             ))}
           </Box>
@@ -607,7 +607,7 @@ function WelcomeOverlay({ user, tipoNegocio, onDismiss }) {
                     bgcolor: checkedItems[item.id] ? `${GREEN}10` : 'action.hover',
                     border: '1px solid',
                     borderColor: checkedItems[item.id] ? `${GREEN}35` : 'divider',
-                    transition: 'all 0.2s ease',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
                     '&:hover': { borderColor: checkedItems[item.id] ? `${GREEN}50` : `${biz.color}40` },
                   }}
                 >
@@ -638,7 +638,7 @@ function WelcomeOverlay({ user, tipoNegocio, onDismiss }) {
               background: `linear-gradient(135deg, ${cur.color}, ${cur.color}cc)`,
               boxShadow: `0 8px 24px ${cur.color}40`,
               '&:hover': { boxShadow: `0 12px 32px ${cur.color}55`, transform: 'translateY(-1px)' },
-              transition: 'all 0.2s ease',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
             }}
           >
             {cur.cta}
@@ -683,7 +683,7 @@ function QuickAccessGrid({ accesosRapidos }) {
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.8,
               px: 1.5, py: 1.6, borderRadius: 2.5,
               bgcolor: `${color}0D`, border: `1px solid ${color}20`,
-              cursor: 'pointer', transition: 'all 0.22s cubic-bezier(0.4,0,0.2,1)',
+              cursor: 'pointer', transition: 'transform 0.22s cubic-bezier(0.4,0,0.2,1), box-shadow 0.22s cubic-bezier(0.4,0,0.2,1), background-color 0.22s cubic-bezier(0.4,0,0.2,1), border-color 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.22s cubic-bezier(0.4,0,0.2,1)',
               '&:hover': {
                 bgcolor: `${color}18`,
                 transform: 'translateY(-3px)',
@@ -1048,7 +1048,7 @@ const Dashboard = ({ user }) => {
             <IconButton
               onClick={() => fetchAll()}
               size="small"
-              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, transition: 'all 0.2s', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: `${ACCENT}08` } }}
+              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s', '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: `${ACCENT}08` } }}
             >
               <Refresh sx={{ fontSize: 18 }} />
             </IconButton>
@@ -1075,7 +1075,7 @@ const Dashboard = ({ user }) => {
                 cursor: 'pointer', bgcolor: `${a.color}12`, color: a.color,
                 fontWeight: 700, fontSize: 11, border: `1px solid ${a.color}28`,
                 '&:hover': { bgcolor: `${a.color}20`, transform: 'translateY(-1px)' },
-                transition: 'all 0.2s ease',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
               }}
             />
           ))}
@@ -1202,7 +1202,7 @@ const Dashboard = ({ user }) => {
                     border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper',
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     position: 'relative', overflow: 'hidden',
-                    transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)',
+                    transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1), box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), background-color 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.25s cubic-bezier(0.4,0,0.2,1), color 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.25s cubic-bezier(0.4,0,0.2,1)',
                     '&:hover': {
                       borderColor: s.color, bgcolor: `${s.color}05`,
                       transform: 'translateY(-6px)', boxShadow: `0 16px 40px ${s.color}18`,
@@ -1280,7 +1280,7 @@ const Dashboard = ({ user }) => {
                         px: 1.4, py: 0.5, fontSize: 10.5, fontWeight: 700, cursor: 'pointer',
                         bgcolor: sparkDays === d ? `${ACCENT}18` : 'transparent',
                         color: sparkDays === d ? ACCENT : 'text.secondary',
-                        transition: 'all 0.2s',
+                        transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                         '&:hover': { bgcolor: sparkDays === d ? `${ACCENT}18` : 'action.hover' },
                       }}>
                         {d}d

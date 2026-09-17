@@ -13,6 +13,7 @@ import { Close, DirectionsCar, Person, AttachMoney, Save } from '@mui/icons-mate
 import apiClient from '../../api';
 import { toast } from 'react-toastify';
 import { formatCurrency } from '../../utils/formatters';
+import { filterOptions50 } from '../../utils/autocompleteFilters';
 import { ParqueaderoSuscripcionDialog } from './ParqueaderoSuscripcionDialog';
 import { BRAND_OPTIONS, getModelOptions } from './vehicleBrands';
 import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
@@ -204,6 +205,7 @@ export function ParqueaderoVehiculoDialog({ open, onClose, placaSugerida, onSucc
           <>
             <Autocomplete
               size="small" options={clientes}
+              filterOptions={filterOptions50}
               getOptionLabel={(c) => `${c.nombre}${c.cedula ? ` · CC ${c.cedula}` : ''}`}
               value={clienteSel}
               onChange={(_, v) => setClienteSel(v)}

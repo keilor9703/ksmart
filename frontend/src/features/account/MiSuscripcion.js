@@ -26,7 +26,7 @@ import WompiButton from '../../components/common/WompiButton';
 const getInputSx = (accentColor) => ({
   '& .MuiOutlinedInput-root': {
     borderRadius: 2.5,
-    transition: 'all 0.2s ease-in-out',
+    transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out, opacity 0.2s ease-in-out',
     '&:hover .MuiOutlinedInput-notchedOutline': {
       borderColor: alpha(accentColor, 0.6),
     },
@@ -498,7 +498,7 @@ const PlanesSection = ({ planes, planActualId, onSuccess }) => {
               color: periodoIdx === i ? 'text.primary' : 'text.secondary',
               bgcolor: periodoIdx === i ? (isDark ? '#1F1F1F' : '#fff') : 'transparent',
               boxShadow: periodoIdx === i ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all 0.15s',
+              transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
               display: 'flex', alignItems: 'center', gap: 0.6,
               userSelect: 'none',
             }}
@@ -622,7 +622,7 @@ const PlanCard = ({ planKey, plan, periodo, onSuccess, isCurrent }) => {
         : (isDark ? 'rgba(255,255,255,0.03)' : '#fff'),
       p: 2.5,
       display: 'flex', flexDirection: 'column',
-      transition: 'all 0.2s',
+      transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
       boxShadow: meta.featured
         ? `0 8px 32px ${color}35`
         : isCurrent ? `0 2px 12px ${color}20` : '0 1px 4px rgba(0,0,0,0.06)',
@@ -1342,7 +1342,7 @@ const MiEmpresaTab = () => {
             background: 'linear-gradient(135deg, #0891B2 0%, #0EA5E9 100%)',
             boxShadow: '0 4px 12px rgba(8, 145, 178, 0.25)',
             '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(8, 145, 178, 0.35)' },
-            transition: 'all 0.2s',
+            transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
           }}
         >
           {savingInfo ? 'Guardando…' : 'Guardar cambios'}
@@ -1417,7 +1417,7 @@ const MiEmpresaTab = () => {
                   background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
                   boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
                   '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(245, 158, 11, 0.35)' },
-                  transition: 'all 0.2s',
+                  transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                 }}
               >
                 {savingFidel ? 'Guardando…' : 'Guardar configuración'}
@@ -1552,7 +1552,7 @@ const MiEmpresaTab = () => {
                   background: 'linear-gradient(135deg, #7C3AED 0%, #6d28d9 100%)',
                   boxShadow: '0 4px 12px rgba(124, 92, 237, 0.25)',
                   '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(124, 92, 237, 0.35)' },
-                  transition: 'all 0.2s',
+                  transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                 }}
               >
                 {savingPwd ? 'Guardando…' : 'Cambiar contraseña'}

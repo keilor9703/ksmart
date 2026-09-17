@@ -109,7 +109,7 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                       border: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, 
                       borderRadius: 2.5,
                       bgcolor: dark ? 'rgba(255,255,255,0.02)' : '#fff',
-                      transition: 'all 0.2s',
+                      transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                       '&:hover': { bgcolor: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', transform: 'rotate(90deg)' }
                     }}
                   >
@@ -399,7 +399,7 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                         sx={{ 
                           bgcolor: BLUE, borderRadius: 2.5, fontWeight: 800, py: 1.3, textTransform: 'none',
                           boxShadow: `0 6px 16px ${BLUE}30`,
-                          transition: 'all 0.2s',
+                          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                           '&:hover': { bgcolor: BLUE, filter: 'brightness(1.15)', transform: 'translateY(-1px)' }
                         }}
                       >
@@ -414,7 +414,7 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                             sx={{ 
                               borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1, borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
                               color: dark ? '#E2E8F0' : '#475569',
-                              transition: 'all 0.2s',
+                              transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                               '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}08` }
                             }}
                           >
@@ -428,7 +428,7 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                             sx={{ 
                               borderRadius: 2.5, fontWeight: 700, textTransform: 'none', py: 1, borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
                               color: dark ? '#E2E8F0' : '#475569',
-                              transition: 'all 0.2s',
+                              transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                               '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}08` }
                             }}
                           >
@@ -445,7 +445,7 @@ const TenantDrawer360 = ({ open, onClose, tenant, onImpersonate, onOpenPlan, onO
                           borderRadius: 2.5, fontWeight: 800, textTransform: 'none', py: 1,
                           borderColor: tenant.is_active ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)',
                           bgcolor: tenant.is_active ? 'rgba(239, 68, 68, 0.02)' : 'rgba(16, 185, 129, 0.02)',
-                          transition: 'all 0.2s',
+                          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                           '&:hover': { bgcolor: tenant.is_active ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)' }
                         }}
                       >

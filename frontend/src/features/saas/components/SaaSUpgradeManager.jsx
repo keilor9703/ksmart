@@ -413,7 +413,7 @@ const SaaSUpgradeManager = ({ user }) => {
                       display: 'flex', alignItems: 'center', gap: 0.8,
                       bgcolor: periodo.dias === p.dias ? (theme.palette.mode === 'dark' ? '#1F1F1F' : 'white') : 'transparent',
                       boxShadow: periodo.dias === p.dias ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
-                      transition: 'all 0.15s',
+                      transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                     }}>
                       <Typography sx={{ fontSize: 13, fontWeight: periodo.dias === p.dias ? 700 : 500, color: periodo.dias === p.dias ? 'text.primary' : 'text.secondary' }}>
                         {p.label}

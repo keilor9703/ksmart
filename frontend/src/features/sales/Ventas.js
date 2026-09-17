@@ -50,7 +50,7 @@ const BARCODE_FORMATS = ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_e', 'cod
 const getInputSx = (accentColor) => ({
   '& .MuiOutlinedInput-root': {
     borderRadius: 2.5,
-    transition: 'all 0.2s ease-in-out',
+    transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out, opacity 0.2s ease-in-out',
     '&:hover .MuiOutlinedInput-notchedOutline': {
       borderColor: alpha(accentColor, 0.6),
     },
@@ -279,7 +279,7 @@ const SaleDetailRow = ({ detail, productos, onProductChange, onFieldChange, onRe
                     px: 1.5, py: 0.8, borderRadius: 1.5, cursor: 'pointer',
                     border: '1px dashed', borderColor: 'divider',
                     '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}06` },
-                    transition: 'all 0.15s',
+                    transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                 }}>
                     <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{formatCurrency(detail.precioUnitario)}</Typography>
                     <LockOutlined sx={{ fontSize: 12, color: 'text.disabled', ml: 0.5 }} />
@@ -2040,7 +2040,7 @@ useEffect(() => {
                                                     bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
                                                     color: isSelected ? opt.color : 'text.secondary',
                                                     fontSize: 13, fontWeight: isSelected ? 700 : 500,
-                                                    transition: 'all 0.15s', userSelect: 'none',
+                                                    transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s', userSelect: 'none',
                                                     '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
                                                     whiteSpace: 'nowrap',
                                                 }}

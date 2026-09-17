@@ -1113,7 +1113,7 @@ const Cotizaciones = () => {
                   return (
                     <Box key={opt.label}
                       onClick={() => { setConvertirPagada(opt.pagada); if (opt.value) setConvertirMetodo(opt.value); }}
-                      sx={{ px: 2, py: 1, borderRadius: 2, cursor: 'pointer', border: '1.5px solid', borderColor: selected ? color : 'divider', bgcolor: selected ? `${color}12` : 'background.paper', color: selected ? color : 'text.secondary', fontSize: 13, fontWeight: selected ? 700 : 500, transition: 'all 0.15s', userSelect: 'none', '&:hover': { borderColor: color } }}>
+                      sx={{ px: 2, py: 1, borderRadius: 2, cursor: 'pointer', border: '1.5px solid', borderColor: selected ? color : 'divider', bgcolor: selected ? `${color}12` : 'background.paper', color: selected ? color : 'text.secondary', fontSize: 13, fontWeight: selected ? 700 : 500, transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s', userSelect: 'none', '&:hover': { borderColor: color } }}>
                       {opt.label}
                     </Box>
                   );

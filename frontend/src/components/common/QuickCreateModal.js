@@ -100,7 +100,7 @@ const TerceroForm = ({ data, onChange, errors }) => {
               border: '1.5px solid', borderColor: data[key] ? '#3B82F6' : 'divider',
               bgcolor: data[key] ? '#EFF6FF' : 'background.paper',
               color: data[key] ? '#3B82F6' : 'text.secondary',
-              transition: 'all 0.15s', userSelect: 'none',
+              transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s', userSelect: 'none',
             }}
           >
             {label}
@@ -115,7 +115,7 @@ const TerceroForm = ({ data, onChange, errors }) => {
       sx={{
         display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
         p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'rgba(245,158,11,0.35)',
-        bgcolor: 'rgba(245,158,11,0.07)', transition: 'all 0.15s',
+        bgcolor: 'rgba(245,158,11,0.07)', transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
         '&:hover': { borderColor: '#F59E0B' },
       }}
     >
@@ -243,7 +243,7 @@ const ProductoForm = ({ data, onChange, errors }) => {
           p: 1.5, borderRadius: 2, border: '1px solid',
           borderColor: parseFloat(data.unidades_por_empaque) > 1 ? '#F59E0B' : 'divider',
           bgcolor: parseFloat(data.unidades_por_empaque) > 1 ? '#FFFBEB' : 'transparent',
-          transition: 'all 0.2s',
+          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
         }}>
           <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
             📦 ¿Lo compras en empaque con varias unidades?
@@ -341,7 +341,7 @@ const ProductoForm = ({ data, onChange, errors }) => {
                 border: '1.5px solid', borderColor: data.es_servicio === key ? '#10B981' : 'divider',
                 bgcolor: data.es_servicio === key ? '#ECFDF5' : 'background.paper',
                 color: data.es_servicio === key ? '#059669' : 'text.secondary',
-                transition: 'all 0.15s', userSelect: 'none',
+                transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s', userSelect: 'none',
               }}
             >
               {icon}{label}
@@ -371,7 +371,7 @@ const ProductoForm = ({ data, onChange, errors }) => {
             p: 1.5, borderRadius: 2, border: '1px solid',
             borderColor: data.maneja_lotes ? '#10B981' : 'divider',
             bgcolor: data.maneja_lotes ? '#ECFDF5' : 'transparent',
-            transition: 'all 0.2s'
+            transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s'
           }}>
             <FormControlLabel
               control={<Switch checked={data.maneja_lotes} onChange={(e) => onChange('maneja_lotes', e.target.checked)} color="success" />}

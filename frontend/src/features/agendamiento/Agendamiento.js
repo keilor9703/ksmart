@@ -24,6 +24,7 @@ import apiClient, {
   createCita, updateCita, cambiarEstadoCita, deleteCita, prepararCobroCita,
 } from '../../api';
 import usePolling from '../../hooks/usePolling';
+import { filterOptions50 } from '../../utils/autocompleteFilters';
 
 dayjs.locale('es');
 const localizer = dayjsLocalizer(dayjs);
@@ -840,6 +841,7 @@ function CitaDialog({ open, onClose, editing, fechaDefault, horaDefault, onSaved
             <Divider />
 
             <Autocomplete options={clientes} getOptionLabel={(o) => o.nombre || ''}
+              filterOptions={filterOptions50}
               value={clienteSel} onChange={(e, v) => setClienteSel(v)}
               isOptionEqualToValue={(o, v) => o.id === v.id}
               renderInput={(params) => (

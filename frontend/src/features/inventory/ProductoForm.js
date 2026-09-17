@@ -114,7 +114,7 @@ const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOp
           color: open ? '#fff' : accent,
           flexShrink: 0,
           boxShadow: open ? `0 3px 10px ${alpha(accent, 0.4)}` : 'none',
-          transition: 'all 0.2s',
+          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
         }}>
           {icon}
         </Box>
@@ -125,7 +125,7 @@ const SectionCard = ({ icon, title, accent = DEFAULT_ACCENT, children, defaultOp
           width: 22, height: 22, borderRadius: '50%',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           bgcolor: open ? alpha(accent, 0.12) : 'transparent',
-          transition: 'all 0.2s',
+          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
         }}>
           {open
             ? <ExpandLess sx={{ color: accent, fontSize: 18 }} />
@@ -192,7 +192,7 @@ const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: open ? '#fff' : accentColor,
             boxShadow: open ? `0 4px 12px ${alpha(accentColor, 0.4)}` : 'none',
-            transition: 'all 0.25s',
+            transition: 'transform 0.25s, box-shadow 0.25s, background-color 0.25s, border-color 0.25s, color 0.25s, opacity 0.25s',
           }}>
             {icon}
           </Box>
@@ -213,7 +213,7 @@ const Panel = ({ title, icon, chip, open, onToggle, forceOpen, onClose, children
               width: 26, height: 26, borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               bgcolor: open ? alpha(accentColor, 0.12) : 'action.hover',
-              transition: 'all 0.2s',
+              transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
             }}>
               {open
                 ? <ExpandLess sx={{ color: accentColor, fontSize: 18 }} />
@@ -787,7 +787,7 @@ const ProductoForm = ({
         mb: 2, p: 1.5, borderRadius: 2,
         bgcolor: mostrarEnCatalogo ? alpha(CATALOG_COLOR, 0.08) : 'action.hover',
         border: '1px solid', borderColor: mostrarEnCatalogo ? alpha(CATALOG_COLOR, 0.35) : 'divider',
-        transition: 'all 0.25s',
+        transition: 'transform 0.25s, box-shadow 0.25s, background-color 0.25s, border-color 0.25s, color 0.25s, opacity 0.25s',
       }}>
         <Box>
           <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
@@ -913,7 +913,7 @@ const ProductoForm = ({
                       fontWeight: isActive ? 700 : 500,
                       fontSize: 13.5,
                       userSelect: 'none',
-                      transition: 'all 0.2s',
+                      transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                       background: isActive
                         ? `linear-gradient(135deg, ${color}, ${alpha(color, 0.75)})`
                         : 'transparent',
@@ -1481,7 +1481,7 @@ const ProductoForm = ({
                         p: 1.5, borderRadius: 2, border: '1px solid',
                         borderColor: manejaLotes ? '#10B981' : 'divider',
                         bgcolor: manejaLotes ? alpha('#10B981', isDark ? 0.12 : 0.06) : 'transparent',
-                        transition: 'all 0.2s',
+                        transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                       }}>
                         <FormControlLabel
                           control={<Switch checked={manejaLotes} onChange={e => setManejaLotes(e.target.checked)} color="success" />}
@@ -1508,7 +1508,7 @@ const ProductoForm = ({
                           p: 2, borderRadius: 2, border: '1px solid',
                           borderColor: parseFloat(stockInicial) > 0 ? '#3B82F6' : 'divider',
                           bgcolor: parseFloat(stockInicial) > 0 ? (isDark ? alpha('#3B82F6', 0.1) : '#EFF6FF') : 'transparent',
-                          transition: 'all 0.2s',
+                          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                         }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                             <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>📊 Stock inicial disponible</Typography>
@@ -1579,7 +1579,7 @@ const ProductoForm = ({
                         p: 2, borderRadius: 2, border: '1px solid',
                         borderColor: parseFloat(unidadesPorEmpaque) > 1 ? '#F59E0B' : 'divider',
                         bgcolor: parseFloat(unidadesPorEmpaque) > 1 ? (isDark ? alpha('#F59E0B', 0.08) : '#FFFBEB') : 'transparent',
-                        transition: 'all 0.2s',
+                        transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                       }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                           <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>📦 Empaque / Caja con múltiples unidades</Typography>
@@ -1699,7 +1699,7 @@ const ProductoForm = ({
                 borderRadius: 2.5, fontWeight: 700, px: 4, py: 1,
                 fontSize: 14,
                 letterSpacing: 0.3,
-                transition: 'all 0.2s',
+                transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                 '&:hover': {
                   transform: 'translateY(-1px)',
                   boxShadow: esServicio
@@ -1862,7 +1862,7 @@ const ProductoForm = ({
               boxShadow: `0 4px 14px ${alpha(accentColor, 0.45)}`,
               '&:hover': { transform: 'translateY(-1px)', boxShadow: `0 6px 20px ${alpha(accentColor, 0.55)}` },
               '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
-              transition: 'all 0.2s',
+              transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
             }}
           >
             {varianteEditing ? '✓ Guardar cambios' : '+ Agregar variante'}

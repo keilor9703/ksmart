@@ -303,7 +303,7 @@ const ClienteForm = ({
               sx={{
                 display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer',
                 p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'rgba(245,158,11,0.35)',
-                bgcolor: 'rgba(245,158,11,0.07)', transition: 'all 0.15s',
+                bgcolor: 'rgba(245,158,11,0.07)', transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                 '&:hover': { borderColor: '#F59E0B' },
               }}
             >

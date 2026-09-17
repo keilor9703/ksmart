@@ -641,7 +641,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                             p: 1.4, borderRadius: 2, cursor: 'pointer',
                             border: `1px solid ${alpha(theme.palette.divider, 1)}`,
                             bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                            transition: 'all 0.15s',
+                            transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                             '&:hover': { borderColor: '#0891B2', bgcolor: alpha('#0891B2', 0.04) },
                             '&:active': { transform: 'scale(0.98)' },
                           }}>
@@ -901,7 +901,7 @@ const ComandaPanel = ({ mesa, comanda, productos, config, onClose, onSuccess, em
                                     p: 1.2, borderRadius: 2, cursor: 'pointer',
                                     border: `1px solid ${alpha(theme.palette.divider, 1)}`,
                                     bgcolor: isDark ? alpha('#fff', 0.025) : alpha('#000', 0.02),
-                                    transition: 'all 0.15s',
+                                    transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                                     '&:hover': { borderColor: '#0891B2', bgcolor: alpha('#0891B2', 0.04) },
                                     '&:active': { transform: 'scale(0.98)' },
                                   }}
@@ -1095,7 +1095,7 @@ const MesaCard = ({ mesa, onClick }) => {
         border: `2px solid ${cfg.color}`,
         bgcolor: cfg.bg,
         p: 1.5, display: 'flex', flexDirection: 'column',
-        transition: 'all 0.2s',
+        transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
         '&:hover': { transform: 'translateY(-3px)', boxShadow: `0 8px 24px ${alpha(cfg.color, 0.25)}` },
         position: 'relative',
       }}

@@ -653,7 +653,7 @@ const agregarDiasGracia = (dias) => {
                                     bgcolor: selected ? `${ACCENT}12` : 'transparent',
                                     color: selected ? ACCENT : 'text.secondary',
                                     fontSize: 12, fontWeight: selected ? 700 : 500,
-                                    transition: 'all 0.15s',
+                                    transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                                     '&:hover': { borderColor: ACCENT },
                                     userSelect: 'none',
                                   }}

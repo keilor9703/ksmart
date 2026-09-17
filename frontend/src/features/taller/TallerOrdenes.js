@@ -15,6 +15,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../../api';
 import CurrencyField from '../../components/common/CurrencyField';
 import { BRAND_OPTIONS, getModelOptions } from '../parking/vehicleBrands';
+import { filterOptions50 } from '../../utils/autocompleteFilters';
 
 // Un solo lugar con el flujo de estados por tipo de orden — la Kanban y el
 // stepper del detalle se generan a partir de esto, así que agregar un paso
@@ -181,6 +182,7 @@ const NuevaOrdenDialog = ({ open, onClose, tipoOrden, clientes, onCreated }) => 
         {tipoOrden === 'reparacion_cliente' ? (
           <Autocomplete
             options={clientes}
+            filterOptions={filterOptions50}
             getOptionLabel={(o) => `${o.nombre}${o.telefono ? ` · ${o.telefono}` : ''}`}
             value={cliente}
             onChange={(_, v) => setCliente(v)}
@@ -712,6 +714,7 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, clientes, onChang
                       <Autocomplete
                         size="small"
                         options={productos}
+                        filterOptions={filterOptions50}
                         getOptionLabel={(o) => o.nombre}
                         value={producto}
                         onChange={(_, v) => { setProducto(v); setDescripcion(v?.nombre || ''); if (v?.costo) setCostoUnitario(v.costo); }}

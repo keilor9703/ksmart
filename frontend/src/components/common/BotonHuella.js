@@ -117,7 +117,7 @@ export default function BotonHuella({
               height: size,
               bgcolor: DARK_BG,
               color: HUELLA_GREEN,
-              transition: 'all 0.25s ease',
+              transition: 'transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, opacity 0.25s ease',
               boxShadow: hovered
                 ? `0 8px 24px ${HUELLA_GREEN}50`
                 : `0 4px 12px rgba(0,0,0,0.25)`,

@@ -354,7 +354,7 @@ export default function GruposProductoManager({ onGruposChange }) {
                 p: 1.5, borderRadius: 2,
                 border: `1px solid ${form.requiere_cocina ? 'rgba(236,72,153,0.4)' : 'rgba(0,0,0,0.12)'}`,
                 bgcolor: form.requiere_cocina ? 'rgba(236,72,153,0.06)' : 'transparent',
-                transition: 'all 0.2s',
+                transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <OutdoorGrill sx={{ fontSize: 18, color: form.requiere_cocina ? '#EC4899' : 'text.disabled' }} />
@@ -381,7 +381,7 @@ export default function GruposProductoManager({ onGruposChange }) {
                 p: 1.5, borderRadius: 2,
                 border: `1px solid ${form.visible_pos ? 'rgba(16,185,129,0.4)' : 'rgba(0,0,0,0.12)'}`,
                 bgcolor: form.visible_pos ? 'rgba(16,185,129,0.06)' : 'transparent',
-                transition: 'all 0.2s',
+                transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <PointOfSale sx={{ fontSize: 18, color: form.visible_pos ? '#10B981' : 'text.disabled' }} />
@@ -447,7 +447,7 @@ export default function GruposProductoManager({ onGruposChange }) {
               p: 1.5, borderRadius: 2,
               border: `1px solid ${configForm.visible_pos ? 'rgba(16,185,129,0.4)' : 'rgba(0,0,0,0.12)'}`,
               bgcolor: configForm.visible_pos ? 'rgba(16,185,129,0.06)' : 'transparent',
-              transition: 'all 0.2s',
+              transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
             }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <PointOfSale sx={{ fontSize: 18, color: configForm.visible_pos ? '#10B981' : 'text.disabled' }} />
@@ -470,7 +470,7 @@ export default function GruposProductoManager({ onGruposChange }) {
                 p: 1.5, borderRadius: 2,
                 border: `1px solid ${configForm.requiere_cocina ? 'rgba(236,72,153,0.4)' : 'rgba(0,0,0,0.12)'}`,
                 bgcolor: configForm.requiere_cocina ? 'rgba(236,72,153,0.06)' : 'transparent',
-                transition: 'all 0.2s',
+                transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <OutdoorGrill sx={{ fontSize: 18, color: configForm.requiere_cocina ? '#EC4899' : 'text.disabled' }} />

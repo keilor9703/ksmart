@@ -20,7 +20,7 @@ const ModuleToggle = ({ module, checked, onChange }) => (
       border: '1px solid',
       borderColor: checked ? ACCENT : 'divider',
       bgcolor: checked ? `${ACCENT}10` : 'action.hover',
-      transition: 'all 0.15s ease',
+      transition: 'transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease',
       '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}08` },
     }}
   >
@@ -29,7 +29,7 @@ const ModuleToggle = ({ module, checked, onChange }) => (
       border: `2px solid ${checked ? ACCENT : '#94a3b8'}`,
       bgcolor: checked ? ACCENT : 'transparent',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      transition: 'all 0.15s',
+      transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
     }}>
       {checked && <Check sx={{ fontSize: 12, color: '#fff' }} />}
     </Box>

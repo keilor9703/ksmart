@@ -27,7 +27,7 @@ const TabIconBox = ({ icon, active }) => (
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     bgcolor: active ? `${ACCENT}22` : 'transparent',
     color: active ? ACCENT : 'text.secondary',
-    transition: 'all 0.2s',
+    transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
     mr: 0.8,
     flexShrink: 0,
   }}>
@@ -146,7 +146,7 @@ const Productos = () => {
                   fontSize: 13.5,
                   boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
                   flexShrink: 0,
-                  transition: 'all 0.2s',
+                  transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                   '&:hover': {
                     bgcolor: 'rgba(255,255,255,0.28)',
                     transform: 'translateY(-1px)',

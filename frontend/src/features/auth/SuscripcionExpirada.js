@@ -139,7 +139,7 @@ export default function SuscripcionExpirada({ onActive }) {
                     px: 2, py: 0.8, borderRadius: 1.5, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 0.8,
                     bgcolor: periodo.dias === p.dias ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    transition: 'all 0.15s',
+                    transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                   }}>
                     <Typography sx={{ fontSize: 13, fontWeight: periodo.dias === p.dias ? 700 : 400, color: periodo.dias === p.dias ? '#f8fafc' : '#94a3b8' }}>
                       {p.label}

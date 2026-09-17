@@ -624,7 +624,7 @@ const TabGeneral = ({ config, set, saving, onSave, loading }) => {
             const selected = (config.tipo_impresora || 'p80') === key;
             return (
               <Box key={key} onClick={() => set('tipo_impresora', key)}
-                sx={{ cursor: 'pointer', transition: 'all 0.2s', opacity: selected ? 1 : 0.5, '&:hover': { opacity: 0.85 } }}>
+                sx={{ cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s', opacity: selected ? 1 : 0.5, '&:hover': { opacity: 0.85 } }}>
                 {/* Ticket body */}
                 <Box sx={{
                   width: w,

@@ -6,7 +6,17 @@ import { createTheme } from '@mui/material/styles';
 // claro para texto sobre blanco. Plano, sin gradientes ni sombras de color.
 const ACCENT      = '#0891B2';  // cyan-600
 const ACCENT_HOVER = '#0E7490'; // cyan-700
-const TRANS  = 'all 0.18s cubic-bezier(0.4,0,0.2,1)';
+// Se anima solo lo que realmente cambia (color/borde/fondo), nunca "all": animar
+// "all" obliga al navegador a evaluar todas las propiedades del elemento en
+// cada frame (incluidas las que disparan layout), lo cual se siente lento en
+// listas largas o con muchos elementos interactivos en pantalla a la vez.
+// Nota: en CSS cada entrada separada por coma necesita su propia duración —
+// "a, b 0.18s" solo anima "b" — por eso se repite "<prop> <duración>" por cada
+// propiedad en vez de listarlas juntas con una sola duración al final.
+const TRANS_DURATION = '0.18s cubic-bezier(0.4,0,0.2,1)';
+const TRANS = ['background-color', 'border-color', 'color', 'box-shadow']
+  .map(p => `${p} ${TRANS_DURATION}`)
+  .join(', ');
 
 const FONT = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 

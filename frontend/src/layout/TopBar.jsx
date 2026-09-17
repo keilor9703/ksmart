@@ -92,7 +92,7 @@ const TopBar = ({ sidebarExpanded, isMobile, onMobileMenuOpen, mode, onThemeTogg
                   pl: 1.5, pr: 2, py: 0.75, borderRadius: 3, cursor: 'pointer',
                   backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#F4F6F9',
                   border: `1px solid ${mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#E5E7EB'}`,
-                  transition: 'all 0.18s ease',
+                  transition: 'transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease',
                   '&:hover': {
                     backgroundColor: mode === 'dark' ? 'rgba(8,145,178,0.1)' : 'rgba(8,145,178,0.06)',
                     borderColor: 'rgba(8,145,178,0.35)',

@@ -343,7 +343,7 @@ export default function AgendamientoConfig() {
                 <Paper key={srv.id} elevation={0} sx={{
                   p: { xs: 1.8, sm: 2.2 }, borderRadius: 3,
                   border: '1px solid', borderColor: on ? `${TEAL}55` : 'divider',
-                  bgcolor: on ? `${TEAL}08` : 'background.paper', transition: 'all .15s',
+                  bgcolor: on ? `${TEAL}08` : 'background.paper', transition: 'transform .15s, box-shadow .15s, background-color .15s, border-color .15s, color .15s, opacity .15s',
                 }}>
                   <Grid container spacing={1.5} alignItems="center">
                     <Grid item xs={12} sm={5}>

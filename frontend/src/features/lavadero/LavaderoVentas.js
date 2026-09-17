@@ -27,6 +27,7 @@ import { METODOS_PAGO_SIMPLE as METODOS_PAGO } from '../../utils/constants';
 import { imprimirReciboLavadero } from '../../utils/printLavadero';
 import LinkPagoModal from '../../components/common/LinkPagoModal';
 import CurrencyField from '../../components/common/CurrencyField';
+import { filterOptions50 } from '../../utils/autocompleteFilters';
 
 const ACCENT  = '#0891B2';
 const BLUE    = '#3B82F6';
@@ -412,7 +413,7 @@ function ItemCard({ item, enCarrito, onAgregar, precio }) {
         border: '1.5px solid',
         borderColor: enCarrito ? ACCENT : 'divider',
         bgcolor: enCarrito ? `${ACCENT}08` : 'transparent',
-        transition: 'all 0.12s',
+        transition: 'transform 0.12s, box-shadow 0.12s, background-color 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s',
         '&:hover': { borderColor: ACCENT, bgcolor: `${ACCENT}05` },
         position: 'relative',
       }}
@@ -1566,6 +1567,7 @@ export default function LavaderoVentas({ user }) {
             <Autocomplete
               size="small"
               options={clientes}
+              filterOptions={filterOptions50}
               getOptionLabel={c => c.nombre || ''}
               value={clienteObj}
               onChange={(_, v) => setClienteObj(v)}

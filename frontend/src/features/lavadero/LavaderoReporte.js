@@ -213,7 +213,7 @@ export default function LavaderoReporte({ user }) {
                 color: activeRange === r.label ? 'white' : 'text.primary',
                 '& .MuiChip-icon': { color: activeRange === r.label ? 'rgba(255,255,255,0.8)' : 'text.disabled' },
                 '&:hover': { bgcolor: activeRange === r.label ? '#0e7490' : 'action.selected' },
-                transition: 'all 0.15s',
+                transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
               }}
             />
           ))}

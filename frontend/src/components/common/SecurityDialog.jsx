@@ -193,7 +193,7 @@ function PinDigit({ value, filled }) {
       border: `2px solid ${filled ? '#0891B2' : theme.palette.divider}`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       bgcolor: filled ? 'rgba(8,145,178,0.08)' : 'background.default',
-      transition: 'all 0.15s ease',
+      transition: 'transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease',
     }}>
       {filled && <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#0891B2' }} />}
     </Box>

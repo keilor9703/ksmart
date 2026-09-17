@@ -173,7 +173,7 @@ const StateTimeline = ({ estado, tipoEntrega }) => {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     bgcolor: completed || active ? alpha(meta.color, 0.15) : alpha(theme.palette.text.disabled, 0.08),
                     border: `2px solid ${completed || active ? meta.color : theme.palette.divider}`,
-                    transition: 'all 0.2s',
+                    transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                   }}>
                     {completed
                       ? <Done sx={{ fontSize: 13, color: meta.color }} />
@@ -219,7 +219,7 @@ const StatFilterBar = ({ stats, filtro, onChange }) => {
             sx={{
               display: 'flex', alignItems: 'center', gap: 0.6,
               px: 1.5, py: 0.7, borderRadius: 10, cursor: 'pointer',
-              flexShrink: 0, transition: 'all 0.15s',
+              flexShrink: 0, transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
               border: `1.5px solid ${active ? e.color : 'transparent'}`,
               bgcolor: active ? alpha(e.color, isDark ? 0.2 : 0.1) : (isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04)),
               '&:hover': { bgcolor: alpha(e.color, isDark ? 0.2 : 0.08), border: `1.5px solid ${alpha(e.color, 0.4)}` },
@@ -370,7 +370,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
                   onClick={() => setMetodo(m.value)}
                   sx={{
                     display: 'flex', alignItems: 'center', gap: 1.5,
-                    p: 1.5, borderRadius: 2.5, cursor: 'pointer', transition: 'all 0.15s',
+                    p: 1.5, borderRadius: 2.5, cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                     border: `2px solid ${sel ? '#059669' : alpha(theme.palette.divider, 1)}`,
                     bgcolor: sel ? alpha('#059669', 0.06) : 'transparent',
                     '&:hover': { border: `2px solid ${sel ? '#059669' : alpha('#059669', 0.4)}` },
@@ -397,7 +397,7 @@ const PaymentDialog = ({ open, onClose, pedido, empresa, vendedor, onSuccess, li
                   onClick={() => setIvaPct(pct)}
                   sx={{
                     flex: 1, py: 1, borderRadius: 2, textAlign: 'center', cursor: 'pointer',
-                    border: '2px solid', transition: 'all 0.15s',
+                    border: '2px solid', transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                     borderColor: ivaPct === pct ? '#059669' : 'divider',
                     bgcolor: ivaPct === pct ? alpha('#059669', 0.08) : 'transparent',
                   }}
@@ -893,7 +893,7 @@ const PedidoCard = React.memo(function PedidoCard({ pedido, empresa, vendedor, o
           border: `1px solid ${errorFlash ? '#EF4444' : alpha(meta.color, isUrgente ? 0.5 : 0.15)}`,
           borderLeft: `4px solid ${errorFlash ? '#EF4444' : meta.color}`,
           bgcolor: theme.palette.background.paper,
-          transition: 'all 0.2s',
+          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
           position: 'relative',
           overflow: 'visible',
           ...(isUrgente && {

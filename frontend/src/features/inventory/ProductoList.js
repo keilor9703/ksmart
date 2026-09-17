@@ -596,7 +596,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
               size="small"
               sx={{
                 fontWeight: 600, fontSize: 12, borderRadius: 2, cursor: 'pointer', flexShrink: 0,
-                transition: 'all 0.15s',
+                transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                 ...(filterGroup === f.value
                   ? { bgcolor: f.color || accentColor, color: '#fff', boxShadow: `0 2px 8px ${f.color || accentColor}60` }
                   : { bgcolor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', color: 'text.secondary', '&:hover': { bgcolor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)' } }),
@@ -623,7 +623,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
                 size="small"
                 sx={{
                   fontWeight: 600, fontSize: 12, borderRadius: 2, cursor: 'pointer', flexShrink: 0,
-                  transition: 'all 0.15s',
+                  transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                   ...(filterStock === f.value
                     ? { bgcolor: f.color || accentColor, color: '#fff', boxShadow: `0 2px 8px ${f.color || accentColor}55` }
                     : { bgcolor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)', color: 'text.secondary' }),
@@ -1047,7 +1047,7 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
               boxShadow: `0 4px 14px ${alpha(accentColor, 0.45)}`,
               '&:hover': { transform: 'translateY(-1px)', boxShadow: `0 6px 20px ${alpha(accentColor, 0.55)}` },
               '&:disabled': { background: 'rgba(0,0,0,0.12)', boxShadow: 'none' },
-              transition: 'all 0.2s',
+              transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
             }}
           >
             Aplicar cambio

@@ -1097,7 +1097,7 @@ const CatalogoVirtual = () => {
                           <Box
                             key={i}
                             onClick={() => setCurrentImgIndex(i)}
-                            sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: i === currentImgIndex ? accentColor : 'rgba(255,255,255,0.5)', transition: 'all 0.2s', cursor: 'pointer' }}
+                            sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: i === currentImgIndex ? accentColor : 'rgba(255,255,255,0.5)', transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s', cursor: 'pointer' }}
                           />
                         ))}
                       </Box>
@@ -1190,7 +1190,7 @@ const CatalogoVirtual = () => {
                               border: '2px solid', borderColor: elegida ? accentColor : borderClr,
                               bgcolor: elegida ? `${accentColor}10` : 'transparent',
                               opacity: sinStock ? 0.45 : 1,
-                              transition: 'all 0.15s',
+                              transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                             }}
                           >
                             <Typography sx={{ fontSize: 13, fontWeight: 700, color: elegida ? accentColor : textPri }}>
@@ -1380,7 +1380,7 @@ const CatalogoVirtual = () => {
                 color: textSec,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                 '&:hover': { bgcolor: subtleBg, transform: 'translateY(-2px)' },
-                transition: 'all 0.2s',
+                transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                 zIndex: 50,
               }}
             >
@@ -1635,7 +1635,7 @@ const CatalogoVirtual = () => {
                             border: `2.5px solid ${mesaNumero === m.numero ? accentColor : borderClr}`,
                             bgcolor: mesaNumero === m.numero ? `${accentColor}12` : subtleBg,
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', transition: 'all 0.15s',
+                            cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                             '&:hover': { borderColor: accentColor, bgcolor: `${accentColor}08` },
                             opacity: m.estado === 'reservada' ? 0.4 : 1,
                           }}
@@ -1688,7 +1688,7 @@ const CatalogoVirtual = () => {
                         bgcolor: step <= checkoutStep ? accentColor : subtleBg,
                         border: `2px solid ${step <= checkoutStep ? accentColor : borderClr}`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.2s',
+                        transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                       }}>
                         <Typography sx={{ fontSize: 12, fontWeight: 800, color: step <= checkoutStep ? '#fff' : textSec }}>
                           {step}

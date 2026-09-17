@@ -48,7 +48,7 @@ const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor, faqItems }) => {
           px: 1.5, py: 0.8, borderRadius: 2,
           bgcolor: `${accentColor}12`,
           border: `1px solid ${accentColor}30`,
-          transition: 'all 0.2s',
+          transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
           '&:hover': { bgcolor: `${accentColor}20`, borderColor: `${accentColor}60` },
         }}
       >
@@ -153,7 +153,7 @@ const HelpGuideTopBar = ({ moduleName, steps = [], moduleColor, faqItems }) => {
             onClick={toggleTooltips}
             sx={{
               p: 2, borderRadius: 2, cursor: 'pointer', mb: 2,
-              border: '1.5px solid', transition: 'all 0.2s',
+              border: '1.5px solid', transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
               borderColor: tooltipsVisible ? '#F59E0B' : 'divider',
               bgcolor: tooltipsVisible ? '#FFFBEB' : 'action.hover',
               display: 'flex', alignItems: 'center', gap: 1.5,

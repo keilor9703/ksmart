@@ -507,7 +507,7 @@ const CartPanel = ({
                                             bgcolor: isSelected ? `${opt.color}15` : 'background.paper',
                                             color: isSelected ? opt.color : 'text.secondary',
                                             fontSize: 12, fontWeight: isSelected ? 700 : 500,
-                                            transition: 'all 0.12s', userSelect: 'none',
+                                            transition: 'transform 0.12s, box-shadow 0.12s, background-color 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s', userSelect: 'none',
                                             '&:hover': { borderColor: opt.color, bgcolor: `${opt.color}08` },
                                             whiteSpace: 'nowrap',
                                         }}
@@ -690,7 +690,7 @@ const GroupSection = ({ section, isExpanded, onToggle, saleDetails, onAddProduct
                         : 'action.hover',
                     border: '1px solid',
                     borderColor: isExpanded ? `${section.color}30` : 'transparent',
-                    transition: 'all 0.15s',
+                    transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
                     userSelect: 'none',
                     '&:hover': { bgcolor: `${section.color}18` },
                 }}

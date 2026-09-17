@@ -62,7 +62,7 @@ function CuotaRow({ cuota, empresa, sentIds, onMarkSent }) {
       p: 1.5, borderRadius: 2,
       border: `1px solid ${alreadySent ? 'rgba(16,185,129,0.3)' : theme.palette.divider}`,
       bgcolor: alreadySent ? 'rgba(16,185,129,0.04)' : 'background.default',
-      transition: 'all 0.2s ease',
+      transition: 'transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
     }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="body2" fontWeight={700} noWrap>

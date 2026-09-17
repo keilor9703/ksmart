@@ -407,7 +407,7 @@ function KpiCard({ xs, md, label, value, icon, color, subtitle }) {
       <Paper sx={{
         p: 2, borderRadius: 3, height: '100%',
         border: '1px solid', borderColor: 'divider',
-        transition: 'all 0.2s',
+        transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
         '&:hover': { borderColor: color, boxShadow: `0 4px 16px ${color}25` },
       }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">

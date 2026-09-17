@@ -219,7 +219,7 @@ const handleDownloadTemplate = async () => {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 1.5, cursor: file ? 'default' : 'pointer',
           bgcolor: dragging ? `${ACCENT}08` : (file ? `${GREEN}05` : 'background.paper'),
-          transition: 'all 0.2s ease-in-out',
+          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out, opacity 0.2s ease-in-out',
           minHeight: 160,
         }}
       >

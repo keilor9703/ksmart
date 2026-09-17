@@ -487,7 +487,7 @@ export default function GestionSaaS() {
                   p: 1, borderRadius: 2, border: '1px solid',
                   borderColor: active ? `${PURPLE}50` : 'divider',
                   bgcolor: active ? `${PURPLE}08` : 'transparent',
-                  transition: 'all 0.15s'
+                  transition: 'transform 0.15s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s'
                 }}>
                   <FormControlLabel
                     control={

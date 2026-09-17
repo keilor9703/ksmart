@@ -50,7 +50,7 @@ const ModuleToggle = ({ module, checked, onChange }) => (
       border: '1.5px solid',
       borderColor: checked ? ACCENT : 'rgba(148, 163, 184, 0.15)',
       bgcolor: checked ? `${ACCENT}0D` : 'background.paper',
-      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       position: 'relative', overflow: 'hidden',
       '&:hover': {
         borderColor: ACCENT,
@@ -66,7 +66,7 @@ const ModuleToggle = ({ module, checked, onChange }) => (
       border: `2px solid ${checked ? ACCENT : '#94a3b8'}`,
       bgcolor: checked ? ACCENT : 'transparent',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      transition: 'all 0.15s ease-in-out',
+      transition: 'transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out, opacity 0.15s ease-in-out',
     }}>
       {checked && <Check sx={{ fontSize: 13, color: '#fff', fontWeight: 900 }} />}
     </Box>
@@ -95,7 +95,7 @@ const UserCardMobile = ({ user, currentUser, onEdit, onToggle }) => (
     p: 2.2, mb: 2, borderRadius: 4,
     border: '1px solid', borderColor: 'divider',
     bgcolor: 'background.paper',
-    transition: 'all 0.2s',
+    transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
     '&:hover': { boxShadow: '0 4px 16px rgba(0,0,0,0.06)' },
     opacity: user.is_active !== false ? 1 : 0.65
   }}>
@@ -685,7 +685,7 @@ export default function AdminUsuarios() {
                 <Paper key={r.id} sx={{
                   p: 2.5, borderRadius: 3.5, border: '1px solid', borderColor: 'divider',
                   display: 'flex', flexDirection: 'column', gap: 1.5,
-                  transition: 'all 0.22s',
+                  transition: 'transform 0.22s, box-shadow 0.22s, background-color 0.22s, border-color 0.22s, color 0.22s, opacity 0.22s',
                   '&:hover': {
                     borderColor: ACCENT,
                     boxShadow: dark ? '0 4px 18px rgba(0,0,0,0.3)' : '0 4px 18px rgba(0,0,0,0.04)',

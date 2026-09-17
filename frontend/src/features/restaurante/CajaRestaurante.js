@@ -342,7 +342,7 @@ const ComandaCard = ({ comanda, onClick }) => {
         p: 2, borderRadius: 3, cursor: 'pointer',
         border: `2px solid ${alpha('#7C3AED', 0.3)}`,
         bgcolor: alpha('#7C3AED', 0.04),
-        transition: 'all 0.2s',
+        transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
         '&:active': { transform: 'scale(0.99)' },
         '&:hover': {
           borderColor: '#7C3AED',

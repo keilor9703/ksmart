@@ -258,7 +258,7 @@ function FeatureCarousel({ idx, setIdx }) {
               borderRadius: 4,
               bgcolor: i === idx ? f.color : 'rgba(255,255,255,0.22)',
               cursor: 'pointer',
-              transition: 'all 0.35s cubic-bezier(0.4,0,0.2,1)',
+              transition: 'transform 0.35s cubic-bezier(0.4,0,0.2,1), box-shadow 0.35s cubic-bezier(0.4,0,0.2,1), background-color 0.35s cubic-bezier(0.4,0,0.2,1), border-color 0.35s cubic-bezier(0.4,0,0.2,1), color 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s cubic-bezier(0.4,0,0.2,1)',
             }}
           />
         ))}
@@ -352,7 +352,7 @@ function PinNumpad({ username, onSuccess, onCancel, onPinInvalido }) {
                         border: `2px solid ${i < pin.length ? PIN_GREEN : 'rgba(255,255,255,0.15)'}`,
                         bgcolor: i < pin.length ? `${PIN_GREEN}20` : 'transparent',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.12s ease',
+                        transition: 'transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease',
                     }}>
                         {i < pin.length && <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: PIN_GREEN }} />}
                     </Box>
@@ -844,7 +844,7 @@ const Login = ({ onLogin }) => {
                     py: 0.9, px: 1.5, borderRadius: 2,
                     bgcolor: i === 2 ? 'rgba(34,197,94,0.08)' : 'transparent',
                     border: i === 2 ? '1px solid rgba(34,197,94,0.2)' : '1px solid transparent',
-                    transition: 'all 0.3s ease',
+                    transition: 'transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, opacity 0.3s ease',
                     animationDelay: `${i * 0.2}s`,
                   }}>
                     <Typography sx={{ fontSize: 15 }}>{item.emoji}</Typography>
@@ -962,7 +962,7 @@ const Login = ({ onLogin }) => {
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        transition: 'all 0.3s ease-in-out',
+                        transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out, background-color 0.3s ease-in-out, border-color 0.3s ease-in-out, color 0.3s ease-in-out, opacity 0.3s ease-in-out',
                     }}>
 
                     {/* Mobile branding — only on xs/sm */}
@@ -981,7 +981,7 @@ const Login = ({ onLogin }) => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        transition: `all 0.5s ${SPRING}`,
+                        transition: `transform 0.5s ${SPRING}, box-shadow 0.5s ${SPRING}, background-color 0.5s ${SPRING}, border-color 0.5s ${SPRING}, color 0.5s ${SPRING}, opacity 0.5s ${SPRING}`,
                         width:     isLoginView ? { xs: 132, lg: 144 } : { xs: 108, lg: 116 },
                         height:    isLoginView ? { xs: 132, lg: 144 } : { xs: 108, lg: 116 },
                         flexShrink: 0,
@@ -998,7 +998,7 @@ const Login = ({ onLogin }) => {
                             borderRadius: '50%',
                             border: `1.5px solid ${BRAND_CYAN}40`,
                             animation: `${pulseRing} 3.4s ease-in-out infinite`,
-                            transition: `all 0.5s ${SPRING}`,
+                            transition: `transform 0.5s ${SPRING}, box-shadow 0.5s ${SPRING}, background-color 0.5s ${SPRING}, border-color 0.5s ${SPRING}, color 0.5s ${SPRING}, opacity 0.5s ${SPRING}`,
                         }} />
                         <img
                             src="/logos/svg/ksmart-icon-rounded.svg"
@@ -1010,7 +1010,7 @@ const Login = ({ onLogin }) => {
                                 boxShadow:    '0 8px 32px rgba(30,200,224,0.28), 0 0 64px rgba(30,200,224,0.10)',
                                 position:     'relative',
                                 zIndex:       1,
-                                transition:   `all 0.5s ${SPRING}`,
+                                transition:   `transform 0.5s ${SPRING}, box-shadow 0.5s ${SPRING}, background-color 0.5s ${SPRING}, border-color 0.5s ${SPRING}, color 0.5s ${SPRING}, opacity 0.5s ${SPRING}`,
                             }}
                         />
                     </Box>
@@ -1064,7 +1064,7 @@ const Login = ({ onLogin }) => {
                                     <Box sx={{
                                         flex: 1, height: 2, borderRadius: 1,
                                         bgcolor: regStep === 2 ? '#0891B2' : 'rgba(148,163,184,0.15)',
-                                        transition: 'all 0.3s',
+                                        transition: 'transform 0.3s, box-shadow 0.3s, background-color 0.3s, border-color 0.3s, color 0.3s, opacity 0.3s',
                                     }} />
                                     <Chip
                                         size="small"
@@ -1442,7 +1442,7 @@ const Login = ({ onLogin }) => {
                                                             bgcolor: regData.tamano_negocio === t.value
                                                                 ? 'rgba(234,88,12,0.1)'
                                                                 : 'rgba(241,245,249,0.04)',
-                                                            transition: 'all 0.2s',
+                                                            transition: 'transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                                                             borderRadius: 2,
                                                         }}>
                                                             <CardActionArea
@@ -1585,7 +1585,7 @@ const Login = ({ onLogin }) => {
                                                             sx={{
                                                                 height: 4, borderRadius: 2,
                                                                 bgcolor: 'rgba(255,255,255,0.08)',
-                                                                '& .MuiLinearProgress-bar': { bgcolor: s.color, transition: 'all 0.35s ease' },
+                                                                '& .MuiLinearProgress-bar': { bgcolor: s.color, transition: 'transform 0.35s ease, box-shadow 0.35s ease, background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, opacity 0.35s ease' },
                                                             }}
                                                         />
                                                         <Typography sx={{ fontSize: 10, color: s.color, fontWeight: 700, mt: 0.4 }}>
@@ -1604,7 +1604,7 @@ const Login = ({ onLogin }) => {
                                                                     bgcolor: req.met ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.03)',
                                                                     color: req.met ? '#22c55e' : '#64748b',
                                                                     border: `1px solid ${req.met ? 'rgba(34, 197, 94, 0.25)' : 'rgba(255, 255, 255, 0.06)'}`,
-                                                                    transition: 'all 0.2s ease',
+                                                                    transition: 'transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease',
                                                                     '& .MuiChip-label': { px: 1 }
                                                                 }}
                                                             />
@@ -1682,7 +1682,7 @@ const Login = ({ onLogin }) => {
                                                     textTransform: 'none',
                                                     color: '#94a3b8',
                                                     borderColor: 'rgba(148,163,184,0.3)',
-                                                    transition: `all 0.22s ${SPRING}`,
+                                                    transition: `transform 0.22s ${SPRING}, box-shadow 0.22s ${SPRING}, background-color 0.22s ${SPRING}, border-color 0.22s ${SPRING}, color 0.22s ${SPRING}, opacity 0.22s ${SPRING}`,
                                                     '&:hover': {
                                                         borderColor: '#94a3b8',
                                                         bgcolor: 'rgba(148,163,184,0.08)',
