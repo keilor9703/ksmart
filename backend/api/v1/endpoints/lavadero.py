@@ -6,7 +6,7 @@ from datetime import datetime, date, timezone, timedelta
 from pydantic import BaseModel
 
 import models
-from api.deps import get_db, get_current_active_user
+from api.deps import get_db, get_current_active_user, get_current_admin_user
 from models import utcnow
 
 router = APIRouter()
@@ -764,6 +764,10 @@ def historial_ventas(
     resultado = []
     for o in ordenes:
         venta_fe = fe_por_venta.get(o.venta_id) if o.venta_id else None
+        comision_total = sum(
+            (d.cantidad or 0) * (d.precio_unitario or 0) * (d.comision_pct or 0) / 100.0
+            for d in o.detalles
+        )
 
         resultado.append({
             "id":           o.id,
@@ -773,10 +777,15 @@ def historial_ventas(
             "fecha_salida": o.fecha_salida.isoformat()  if o.fecha_salida  else None,
             "total":        o.total,
             "metodo_pago":  o.metodo_pago,
+            "cliente_id":   o.cliente_id,
             "cliente_nombre": o.cliente.nombre if o.cliente else None,
+            "operador_id":     o.operador_id,
             "operador_nombre": (o.operador.nombre_completo or o.operador.username) if o.operador else None,
+            "comision_total": round(comision_total, 2),
+            "sede_id":   o.sede_id,
             "sede_nombre": o.sede.nombre if o.sede else None,
-            "servicios":    [{"nombre": d.nombre_servicio or d.nombre_libre, "precio": d.precio_unitario, "cantidad": d.cantidad} for d in o.detalles],
+            "observaciones": o.observaciones,
+            "servicios":    [{"nombre": d.nombre_servicio or d.nombre_libre, "precio": d.precio_unitario, "cantidad": d.cantidad, "comision_pct": d.comision_pct} for d in o.detalles],
             "venta_id":     o.venta_id,
             "numero_factura":  venta_fe.numero_factura  if venta_fe else None,
             "estado_fe":       venta_fe.estado_electronico if venta_fe else None,
@@ -784,6 +793,187 @@ def historial_ventas(
             "pdf_url":         venta_fe.pdf_url          if venta_fe else None,
         })
     return resultado
+
+
+class HistorialEditIn(BaseModel):
+    placa:          Optional[str] = None
+    tipo_vehiculo:  Optional[str] = None
+    cliente_id:     Optional[int] = None
+    operador_id:    Optional[int] = None
+    sede_id:        Optional[int] = None
+    metodo_pago:    Optional[str] = None
+    observaciones:  Optional[str] = None
+    detalles:       Optional[List[DetalleIn]] = None
+
+
+def _historial_row_to_dict(o: models.LavaderoOrden) -> dict:
+    """Misma forma que cada fila de GET /historial, para devolver tras editar."""
+    comision_total = sum(
+        (d.cantidad or 0) * (d.precio_unitario or 0) * (d.comision_pct or 0) / 100.0
+        for d in o.detalles
+    )
+    return {
+        "id":           o.id,
+        "placa":        o.placa,
+        "tipo_vehiculo":o.tipo_vehiculo,
+        "fecha_entrada":o.fecha_entrada.isoformat() if o.fecha_entrada else None,
+        "fecha_salida": o.fecha_salida.isoformat()  if o.fecha_salida  else None,
+        "total":        o.total,
+        "metodo_pago":  o.metodo_pago,
+        "cliente_id":   o.cliente_id,
+        "cliente_nombre": o.cliente.nombre if o.cliente else None,
+        "operador_id":     o.operador_id,
+        "operador_nombre": (o.operador.nombre_completo or o.operador.username) if o.operador else None,
+        "comision_total": round(comision_total, 2),
+        "sede_id":   o.sede_id,
+        "sede_nombre": o.sede.nombre if o.sede else None,
+        "observaciones": o.observaciones,
+        "servicios":    [{"nombre": d.nombre_servicio, "precio": d.precio_unitario, "cantidad": d.cantidad, "comision_pct": d.comision_pct} for d in o.detalles],
+        "venta_id":     o.venta_id,
+    }
+
+
+@router.put("/historial/{orden_id}")
+def editar_historial(
+    orden_id: int,
+    body: HistorialEditIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Editar un registro ya cobrado del historial (solo Admin/SuperAdmin).
+    Corrige errores de captura: placa, vehículo, cliente, lavador, método de
+    pago, observaciones y/o los servicios cobrados (recalcula el total)."""
+    orden = db.query(models.LavaderoOrden).options(
+        joinedload(models.LavaderoOrden.detalles),
+    ).filter_by(id=orden_id, empresa_id=current_user.empresa_id, pagado=True).first()
+    if not orden:
+        raise HTTPException(404, "Registro de venta no encontrado")
+
+    venta = None
+    if orden.venta_id:
+        venta = db.query(models.Venta).filter_by(
+            id=orden.venta_id, empresa_id=current_user.empresa_id
+        ).first()
+        if venta and venta.estado_electronico in ("exitoso",):
+            raise HTTPException(
+                400,
+                "Esta venta ya tiene factura electrónica emitida y no se puede editar. "
+                "Usa una nota crédito si necesitas corregirla."
+            )
+
+    if body.placa is not None:
+        orden.placa = body.placa.upper().replace("-", "").strip()
+    if body.tipo_vehiculo is not None:
+        orden.tipo_vehiculo = body.tipo_vehiculo
+    if body.cliente_id is not None:
+        orden.cliente_id = body.cliente_id or None
+    if body.operador_id is not None:
+        orden.operador_id = body.operador_id or None
+    if body.sede_id is not None:
+        orden.sede_id = body.sede_id or None
+    if body.metodo_pago is not None:
+        orden.metodo_pago = body.metodo_pago
+    if body.observaciones is not None:
+        orden.observaciones = body.observaciones
+
+    if body.detalles is not None:
+        if not body.detalles:
+            raise HTTPException(400, "Debe incluir al menos un servicio")
+        cfg = _get_or_create_config(db, current_user.empresa_id)
+        for d in list(orden.detalles):
+            db.delete(d)
+        db.flush()
+        bruto = 0.0
+        for det in body.detalles:
+            comision = det.comision_pct if det.comision_pct is not None else cfg.comision_pct_global
+            nuevo = models.LavaderoOrdenDetalle(
+                empresa_id=current_user.empresa_id,
+                orden_id=orden.id,
+                producto_id=det.producto_id,
+                nombre_servicio=det.nombre_servicio,
+                cantidad=det.cantidad,
+                precio_unitario=det.precio_unitario,
+                comision_pct=comision,
+            )
+            db.add(nuevo)
+            bruto += det.cantidad * det.precio_unitario
+        db.flush()
+
+        descuento_pts = (venta.descuento_puntos or 0.0) if venta else 0.0
+        orden.total = max(0.0, bruto - descuento_pts)
+
+        if venta:
+            for dv in list(venta.detalles):
+                db.delete(dv)
+            db.flush()
+            for det in body.detalles:
+                db.add(models.DetalleVenta(
+                    empresa_id=current_user.empresa_id,
+                    venta_id=venta.id,
+                    producto_id=det.producto_id,
+                    nombre_libre=det.nombre_servicio if not det.producto_id else None,
+                    cantidad=det.cantidad,
+                    precio_unitario=det.precio_unitario,
+                ))
+            venta.total = orden.total
+            venta.monto_pagado = orden.total
+
+    if venta:
+        if body.placa is not None:
+            venta.placa_vehiculo = orden.placa
+        if body.tipo_vehiculo is not None:
+            venta.tipo_vehiculo = orden.tipo_vehiculo
+        if body.cliente_id is not None:
+            venta.cliente_id = orden.cliente_id
+        if body.operador_id is not None:
+            venta.operador_id = orden.operador_id
+        if body.metodo_pago is not None:
+            venta.metodo_pago = orden.metodo_pago
+        if body.observaciones is not None:
+            venta.observaciones = orden.observaciones
+        db.add(venta)
+
+    db.add(orden)
+    db.commit()
+    db.refresh(orden)
+    return _historial_row_to_dict(orden)
+
+
+@router.delete("/historial/{orden_id}")
+def eliminar_historial(
+    orden_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_admin_user),
+):
+    """Eliminar un registro ya cobrado del historial (solo Admin/SuperAdmin)."""
+    orden = db.query(models.LavaderoOrden).filter_by(
+        id=orden_id, empresa_id=current_user.empresa_id, pagado=True
+    ).first()
+    if not orden:
+        raise HTTPException(404, "Registro de venta no encontrado")
+
+    if orden.venta_id:
+        from crud.ventas import get_venta, delete_venta as crud_delete_venta
+        from crud.devoluciones import revertir_movimientos_venta
+        from crud.validaciones import check_can_delete_venta
+
+        venta = get_venta(db, empresa_id=current_user.empresa_id, venta_id=orden.venta_id)
+        if venta:
+            if venta.estado_electronico in ("exitoso",):
+                raise HTTPException(
+                    400,
+                    "Esta venta ya tiene factura electrónica emitida y no se puede eliminar. "
+                    "Usa una nota crédito si necesitas anularla."
+                )
+            bloqueos = check_can_delete_venta(db, empresa_id=current_user.empresa_id, venta_id=venta.id)
+            if bloqueos:
+                raise HTTPException(409, f"No se puede eliminar: " + ", ".join(bloqueos) + ".")
+            revertir_movimientos_venta(db, empresa_id=current_user.empresa_id, venta=venta)
+            crud_delete_venta(db, empresa_id=current_user.empresa_id, venta_id=venta.id)
+
+    db.delete(orden)
+    db.commit()
+    return {"message": f"Registro de la placa {orden.placa} eliminado"}
 
 
 @router.post("/ventas/{venta_id}/reintentar-fe")

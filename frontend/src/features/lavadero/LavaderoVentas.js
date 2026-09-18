@@ -15,7 +15,7 @@ import {
   Done, Close, Person, WhatsApp, Print, Storefront, QrCode2, Stars,
   History, PictureAsPdf, ContentCopy, Search, Replay, Undo,
   WarningAmber, Cancel, TrendingUp, Bolt, DragIndicator,
-  Assignment, Groups, BarChart, ArrowForward,
+  Assignment, Groups, BarChart, ArrowForward, Edit,
 } from '@mui/icons-material';
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useNavigate } from 'react-router-dom';
@@ -572,6 +572,61 @@ export default function LavaderoVentas({ user }) {
       toast.error(e?.response?.data?.detail || 'Error al reintentar FE');
     } finally {
       setReintentando(null);
+    }
+  };
+
+  /* ── Editar / eliminar registro del historial (solo Admin) ──────────────── */
+  const [editandoHist,      setEditandoHist]      = useState(null); // fila original o null
+  const [histEditForm,      setHistEditForm]      = useState(null);
+  const [guardandoHistEdit, setGuardandoHistEdit]  = useState(false);
+  const [eliminandoHistId,  setEliminandoHistId]   = useState(null);
+
+  const abrirEditarHistorial = (h) => {
+    setEditandoHist(h);
+    setHistEditForm({
+      placa: h.placa || '',
+      tipo_vehiculo: h.tipo_vehiculo || '',
+      cliente_id: h.cliente_id || null,
+      operador_id: h.operador_id || null,
+      metodo_pago: h.metodo_pago || '',
+      observaciones: h.observaciones || '',
+    });
+  };
+
+  const handleGuardarEdicionHistorial = async () => {
+    if (!editandoHist || !histEditForm) return;
+    setGuardandoHistEdit(true);
+    try {
+      const { data } = await apiClient.put(`/lavadero/historial/${editandoHist.id}`, {
+        placa: histEditForm.placa.trim().toUpperCase().replace(/-/g, ''),
+        tipo_vehiculo: histEditForm.tipo_vehiculo || null,
+        cliente_id: histEditForm.cliente_id,
+        operador_id: histEditForm.operador_id,
+        metodo_pago: histEditForm.metodo_pago || null,
+        observaciones: histEditForm.observaciones || null,
+      });
+      setHistorial(prev => prev.map(h => h.id === data.id ? { ...h, ...data } : h));
+      toast.success('Registro actualizado.');
+      setEditandoHist(null);
+      setHistEditForm(null);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al actualizar el registro.');
+    } finally {
+      setGuardandoHistEdit(false);
+    }
+  };
+
+  const handleEliminarHistorial = async (h) => {
+    if (!window.confirm(`¿Eliminar el registro de la placa ${h.placa}? Esta acción no se puede deshacer.`)) return;
+    setEliminandoHistId(h.id);
+    try {
+      await apiClient.delete(`/lavadero/historial/${h.id}`);
+      setHistorial(prev => prev.filter(x => x.id !== h.id));
+      toast.success('Registro eliminado.');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar el registro.');
+    } finally {
+      setEliminandoHistId(null);
     }
   };
 
@@ -1191,7 +1246,11 @@ export default function LavaderoVentas({ user }) {
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    {['Fecha', 'Placa', 'Vehículo', 'Servicios', 'Total', 'Método', 'Cliente', 'Operador', 'FE', 'N° Factura', 'PDF'].map(h => (
+                    {[
+                      'Fecha', 'Placa', 'Vehículo', 'Servicios', 'Total', 'Método', 'Cliente',
+                      'Operador', 'Comisión', 'FE', 'N° Factura', 'PDF',
+                      ...(isAdmin ? ['Acciones'] : []),
+                    ].map(h => (
                       <TableCell key={h} sx={{ fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3, bgcolor: 'action.hover' }}>{h}</TableCell>
                     ))}
                   </TableRow>
@@ -1199,7 +1258,7 @@ export default function LavaderoVentas({ user }) {
                 <TableBody>
                   {historial.length === 0 && !histLoading && (
                     <TableRow>
-                      <TableCell colSpan={11} align="center" sx={{ py: 6, color: 'text.disabled' }}>
+                      <TableCell colSpan={isAdmin ? 13 : 12} align="center" sx={{ py: 6, color: 'text.disabled' }}>
                         Sin registros. Usa los filtros y presiona Buscar.
                       </TableCell>
                     </TableRow>
@@ -1238,6 +1297,11 @@ export default function LavaderoVentas({ user }) {
                         <TableCell><Typography sx={{ fontSize: 12 }}>{h.cliente_nombre || '—'}</Typography></TableCell>
                         <TableCell><Typography sx={{ fontSize: 12 }}>{h.operador_nombre || '—'}</Typography></TableCell>
                         <TableCell>
+                          <Typography sx={{ fontSize: 12, fontWeight: 700, color: AMBER }}>
+                            {h.comision_total ? `$${new Intl.NumberFormat('es-CO').format(h.comision_total)}` : '—'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
                           <Chip label={feLabel} size="small" sx={{ bgcolor: alpha(feColor, 0.1), color: feColor, fontWeight: 700, fontSize: 10, height: 20 }} />
                         </TableCell>
                         <TableCell>
@@ -1269,6 +1333,25 @@ export default function LavaderoVentas({ user }) {
                             )}
                           </Box>
                         </TableCell>
+                        {isAdmin && (
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 0.3 }}>
+                              <Tooltip title="Editar registro">
+                                <IconButton size="small" onClick={() => abrirEditarHistorial(h)} sx={{ color: BLUE }}>
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Eliminar registro">
+                                <span>
+                                  <IconButton size="small" disabled={eliminandoHistId === h.id}
+                                    onClick={() => handleEliminarHistorial(h)} sx={{ color: RED }}>
+                                    {eliminandoHistId === h.id ? <CircularProgress size={14} /> : <DeleteOutline fontSize="small" />}
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -2147,6 +2230,75 @@ export default function LavaderoVentas({ user }) {
       />
 
       </> /* fin TAB 0 POS */}
+
+      {/* ── Editar registro del historial (solo Admin) ── */}
+      <Dialog open={!!editandoHist} onClose={() => { if (!guardandoHistEdit) { setEditandoHist(null); setHistEditForm(null); } }} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, fontSize: 16 }}>Editar registro — {editandoHist?.placa}</DialogTitle>
+        {histEditForm && (
+          <>
+            <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <TextField
+                label="Placa" size="small" value={histEditForm.placa}
+                onChange={e => setHistEditForm(p => ({ ...p, placa: formatPlaca(e.target.value) }))}
+                inputProps={{ maxLength: 8, style: { textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700 } }}
+              />
+              <Autocomplete
+                size="small"
+                options={opcionesVehiculo}
+                freeSolo
+                value={histEditForm.tipo_vehiculo}
+                onChange={(_, v) => setHistEditForm(p => ({ ...p, tipo_vehiculo: v || '' }))}
+                onInputChange={(_, v) => setHistEditForm(p => ({ ...p, tipo_vehiculo: v }))}
+                renderInput={params => <TextField {...params} label="Tipo de vehículo" />}
+              />
+              <Autocomplete
+                size="small"
+                options={clientes}
+                filterOptions={filterOptions50}
+                getOptionLabel={c => c.nombre || ''}
+                value={clientes.find(c => c.id === histEditForm.cliente_id) || null}
+                onChange={(_, v) => setHistEditForm(p => ({ ...p, cliente_id: v?.id || null }))}
+                renderInput={params => <TextField {...params} label="Cliente" placeholder="Consumidor final" />}
+              />
+              {isAdmin && trabajadores.length > 0 && (
+                <Autocomplete
+                  size="small"
+                  options={trabajadores}
+                  getOptionLabel={t => t.nombre_completo || t.username || ''}
+                  value={trabajadores.find(t => t.id === histEditForm.operador_id) || null}
+                  onChange={(_, v) => setHistEditForm(p => ({ ...p, operador_id: v?.id || null }))}
+                  renderInput={params => <TextField {...params} label="Lavador" />}
+                />
+              )}
+              <TextField
+                select size="small" label="Método de pago"
+                value={histEditForm.metodo_pago}
+                onChange={e => setHistEditForm(p => ({ ...p, metodo_pago: e.target.value }))}
+              >
+                {metodosDisponibles.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+              </TextField>
+              <TextField
+                label="Observaciones" size="small" multiline minRows={2}
+                value={histEditForm.observaciones}
+                onChange={e => setHistEditForm(p => ({ ...p, observaciones: e.target.value }))}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+              <Button onClick={() => { setEditandoHist(null); setHistEditForm(null); }} disabled={guardandoHistEdit}
+                sx={{ textTransform: 'none', fontWeight: 600 }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="contained" onClick={handleGuardarEdicionHistorial} disabled={guardandoHistEdit}
+                startIcon={guardandoHistEdit ? <CircularProgress size={16} color="inherit" /> : null}
+                sx={{ bgcolor: ACCENT, '&:hover': { bgcolor: '#0e7490' }, fontWeight: 700, textTransform: 'none' }}
+              >
+                {guardandoHistEdit ? 'Guardando…' : 'Guardar cambios'}
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </Box>
   );
 }
