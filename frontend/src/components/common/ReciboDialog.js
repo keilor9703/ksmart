@@ -13,6 +13,16 @@ import { formatCurrency } from '../../utils/formatters';
 import { sunmiDisponible, imprimirRecibo } from '../../utils/sunmiPrinter';
 import { printHtml } from '../../utils/printHtml';
 
+// venta.monto_pagado puede ser legítimamente 0 (venta a crédito/fiado sin
+// abonos todavía). Usar `venta.monto_pagado || venta.total` como antes hacía
+// que un 0 "cayera" al total —el recibo mostraba "Pagado: $X" con el total
+// completo aunque la venta estuviera pendiente, y el saldo pendiente
+// calculado daba $0 en vez del monto real adeudado. `??` solo cae al total
+// cuando el campo no viene informado (null/undefined), no cuando es 0.
+function getMontoPagado(venta) {
+  return venta.monto_pagado ?? venta.total ?? 0;
+}
+
 // Arma un renglón "etiqueta ......... valor" ocupando el ancho de una térmica
 // de 58mm (~32 caracteres), para alinear precios/totales a la derecha.
 function padLR(left, right, width = 32) {
@@ -28,7 +38,7 @@ function buildSunmiLines(venta, empresa, vendedor) {
   const lines = [];
   const fecha = new Date(venta.fecha + (venta.fecha?.includes('Z') ? '' : 'Z'));
   const dateStr = fecha.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const saldo = (venta.total || 0) - getMontoPagado(venta);
   const puntos = getPuntosInfo(venta, empresa);
 
   // El recibo NO lleva logo de la empresa (por decisión del cliente): arranca
@@ -117,7 +127,7 @@ function buildWhatsAppText(venta, empresa, vendedor) {
     t += `IVA (${venta.iva_porcentaje}%): ${formatCurrency(venta.iva_total || 0)}\n`;
   t += `*TOTAL: ${formatCurrency(venta.total)}*\n`;
   t += `Método de pago: ${venta.metodo_pago || 'Efectivo'}\n`;
-  const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const saldo = (venta.total || 0) - getMontoPagado(venta);
   if (saldo > 0) t += `⚠️ Saldo pendiente: ${formatCurrency(saldo)}\n`;
   const puntosInfo = getPuntosInfo(venta, empresa);
   if (puntosInfo) {
@@ -139,7 +149,7 @@ function buildPrintHTML(venta, empresa, vendedor, size) {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
-  const saldo = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const saldo = (venta.total || 0) - getMontoPagado(venta);
   const puntosInfo = getPuntosInfo(venta, empresa);
   const { compact, cssSize, margin } = size;
   const fontFamily = compact ? "'Courier New', Courier, monospace" : "Arial, Helvetica, sans-serif";
@@ -275,7 +285,7 @@ td{padding:8px 6px;border-bottom:1px solid #f2f2f2;font-size:13px;}
 <div class="totals">
   ${venta.iva_porcentaje > 0 ? `<div class="trow"><span style="color:#777">IVA incluido (${venta.iva_porcentaje}%)</span><span style="color:#777">${formatCurrency(venta.iva_total || 0)}</span></div>` : ''}
   <div class="trow grand"><span>TOTAL</span><span>${formatCurrency(venta.total)}</span></div>
-  <div class="trow"><span style="color:#777">Pagado · ${venta.metodo_pago || 'Efectivo'}</span><span style="color:#16a34a;font-weight:700;">${formatCurrency(venta.monto_pagado || venta.total)}</span></div>
+  ${getMontoPagado(venta) > 0 ? `<div class="trow"><span style="color:#777">${saldo > 0 ? 'Abonado' : 'Pagado'} · ${venta.metodo_pago || 'Efectivo'}</span><span style="color:#16a34a;font-weight:700;">${formatCurrency(getMontoPagado(venta))}</span></div>` : ''}
   ${saldo > 0 ? `<div class="trow"><span style="color:#dc2626;font-weight:700;">Saldo pendiente</span><span style="color:#dc2626;font-weight:700;">${formatCurrency(saldo)}</span></div>` : ''}
 </div>
 ${puntosInfo ? `
@@ -479,10 +489,12 @@ const A4Preview = ({ venta, empresa, vendedor, dateStr, saldo }) => {
           <Typography sx={{ fontWeight: 800, fontSize: 16, color: ACCENT }}>TOTAL</Typography>
           <Typography sx={{ fontWeight: 800, fontSize: 16, color: ACCENT }}>{formatCurrency(venta.total)}</Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
-          <Typography sx={{ fontSize: 11, color: '#777' }}>Pagado · {venta.metodo_pago || 'Efectivo'}</Typography>
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#16a34a' }}>{formatCurrency(venta.monto_pagado || venta.total)}</Typography>
-        </Box>
+        {getMontoPagado(venta) > 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+            <Typography sx={{ fontSize: 11, color: '#777' }}>{saldo > 0 ? 'Abonado' : 'Pagado'} · {venta.metodo_pago || 'Efectivo'}</Typography>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#16a34a' }}>{formatCurrency(getMontoPagado(venta))}</Typography>
+          </Box>
+        )}
         {saldo > 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
             <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#dc2626' }}>Saldo pendiente</Typography>
@@ -565,7 +577,7 @@ const ReciboDialog = ({ open, onClose, venta, empresa, vendedor }) => {
   const size    = SIZES[paperSize];
   const fecha   = new Date(venta.fecha + (venta.fecha?.includes('Z') ? '' : 'Z'));
   const dateStr = fecha.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const saldo   = (venta.total || 0) - (venta.monto_pagado || venta.total || 0);
+  const saldo   = (venta.total || 0) - getMontoPagado(venta);
 
   const handlePrint = () => {
     const html = buildPrintHTML(venta, empresa, vendedor, size);
