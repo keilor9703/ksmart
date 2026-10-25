@@ -681,10 +681,10 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
           borderRadius: 3,
           border: '1px solid',
           borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)',
-          overflow: 'hidden',
+          overflowX: 'auto',
           boxShadow: isDark ? '0 4px 32px rgba(0,0,0,0.3)' : '0 2px 16px rgba(0,0,0,0.05)',
         }}>
-          <Table size="small">
+          <Table size="small" sx={{ minWidth: 980 }}>
             <TableHead>
               <TableRow>
                 <TableCell padding="checkbox" sx={{ ...thStyle, py: 1.5 }}>
@@ -895,7 +895,12 @@ const ProductoList = ({ onEditProducto, onProductoDeleted, accentColor = DEFAULT
 
                           {/* Acciones */}
                           <TableCell sx={{ py: 1.5, px: 1.5 }}>
-                            <Box className="row-actions" sx={{ display: 'flex', gap: 0.3, opacity: 0.6, transition: 'opacity 0.15s' }}>
+                            <Box className="row-actions" sx={{
+                              display: 'flex', gap: 0.3, opacity: 0.6, transition: 'opacity 0.15s',
+                              // En táctil no hay :hover, así que sin esto los íconos
+                              // de editar/eliminar se quedaban siempre atenuados.
+                              '@media (hover: none)': { opacity: 1 },
+                            }}>
                               <Tooltip title="Editar">
                                 <IconButton size="small" onClick={() => onEditProducto(producto)}
                                   sx={{ color: accentColor, '&:hover': { bgcolor: `${accentColor}12` } }}>
