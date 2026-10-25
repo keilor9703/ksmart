@@ -47,6 +47,7 @@ export default function WhatsAppBot() {
   const [avisarEstado, setAvisarEstado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const pollRef = useRef(null);
+  const qrRefreshRef = useRef(null);
 
   const consultarEstado = useCallback(async (silencioso = false) => {
     if (!silencioso) setCargando(true);
@@ -57,6 +58,7 @@ export default function WhatsAppBot() {
       if (data.conectado) {
         setQr(null);
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+        if (qrRefreshRef.current) { clearTimeout(qrRefreshRef.current); qrRefreshRef.current = null; }
       }
       return data;
     } catch (e) {
@@ -76,7 +78,10 @@ export default function WhatsAppBot() {
         setSaludo(data.mensaje_bienvenida_bot || '');
       })
       .catch(() => {});
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (qrRefreshRef.current) clearTimeout(qrRefreshRef.current);
+    };
   }, [consultarEstado]);
 
   const guardarConfig = async () => {
@@ -96,19 +101,18 @@ export default function WhatsAppBot() {
     }
   };
 
-  const conectar = async () => {
-    setConectando(true);
-    setQr(null);
+  const conectar = async (silencioso = false) => {
+    if (!silencioso) { setConectando(true); setQr(null); }
     try {
       const { data } = await apiClient.post('/whatsapp-bot/conectar');
       // El número puede conectarse y aun así no recibir pedidos si el webhook
       // de la automatización no quedó configurado: se avisa en vez de dejar
       // que el cliente crea que todo quedó listo.
-      if (data.automatizacion_lista === false) {
+      if (!silencioso && data.automatizacion_lista === false) {
         toast.warning('El número se vinculará, pero la automatización no está lista. Contacta a soporte.');
       }
       if (!data.qr_base64) {
-        toast.info('No se recibió el código QR. Intenta de nuevo.');
+        if (!silencioso) toast.info('No se recibió el código QR. Intenta de nuevo.');
       } else {
         setQr(data.qr_base64);
         // Mientras el QR está en pantalla, revisamos si ya escaneó
@@ -117,11 +121,17 @@ export default function WhatsAppBot() {
           const d = await consultarEstado(true);
           if (d?.conectado) toast.success('¡WhatsApp conectado correctamente!');
         }, 4000);
+        // El QR de WhatsApp expira en menos de un minuto — si el usuario
+        // tarda en sacar el celular termina escaneando uno vencido y nunca
+        // enlaza. Se pide uno nuevo solo, sin que tenga que notar que
+        // caducó ni volver a pulsar el botón.
+        if (qrRefreshRef.current) clearTimeout(qrRefreshRef.current);
+        qrRefreshRef.current = setTimeout(() => conectar(true), 25000);
       }
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'No se pudo iniciar la conexión.');
+      if (!silencioso) toast.error(e.response?.data?.detail || 'No se pudo iniciar la conexión.');
     } finally {
-      setConectando(false);
+      if (!silencioso) setConectando(false);
     }
   };
 
@@ -130,6 +140,7 @@ export default function WhatsAppBot() {
     try {
       await apiClient.delete('/whatsapp-bot/desconectar');
       toast.success('WhatsApp desvinculado.');
+      if (qrRefreshRef.current) { clearTimeout(qrRefreshRef.current); qrRefreshRef.current = null; }
       setQr(null);
       consultarEstado();
     } catch (e) {
@@ -218,7 +229,7 @@ export default function WhatsAppBot() {
               </Button>
             ) : (
               <Button variant="contained" startIcon={conectando ? <CircularProgress size={16} color="inherit" /> : <QrCode2 />}
-                onClick={conectar} disabled={conectando}
+                onClick={() => conectar()} disabled={conectando}
                 sx={{ borderRadius: 2, fontWeight: 700, bgcolor: GREEN, '&:hover': { bgcolor: '#1da851' } }}>
                 {conectando ? 'Generando…' : 'Conectar WhatsApp'}
               </Button>
@@ -255,9 +266,10 @@ export default function WhatsAppBot() {
               style={{ width: isMobile ? 220 : 280, height: isMobile ? 220 : 280, display: 'block' }} />
           </Box>
 
-          <Alert severity="warning" sx={{ mt: 2, textAlign: 'left' }}>
-            El código expira en menos de un minuto. Si no alcanzas a escanearlo,
-            pulsa <strong>Conectar WhatsApp</strong> de nuevo para generar otro.
+          <Alert severity="info" sx={{ mt: 2, textAlign: 'left' }}>
+            El código se renueva solo cada 25 segundos mientras no lo escanees,
+            así que siempre verás uno vigente — no hace falta volver a pulsar
+            el botón.
           </Alert>
         </Paper>
       )}

@@ -98,6 +98,20 @@ def conectar(
     db.add(empresa)
     db.commit()
 
+    # Si la instancia ya existe pero NO está conectada, es casi siempre una
+    # sesión colgada de un escaneo anterior que falló (típicamente el error de
+    # WhatsApp "no se pudo vincular, inténtalo más tarde"): reusar esa misma
+    # sesión para pedir un QR nuevo casi nunca la destraba. Se borra primero
+    # para forzar una sesión limpia — mismo efecto que borrar el chat de
+    # "Dispositivos vinculados" y volver a empezar. Si no está conectada no
+    # hay nada que perder; si ya estaba conectada este endpoint ni se llama
+    # (el botón "Conectar" solo aparece cuando no lo está).
+    estado_previo = evo.estado_conexion(empresa_id)
+    if not estado_previo.get("error"):
+        estado_wa = (estado_previo.get("instance") or {}).get("state")
+        if estado_wa != "open":
+            evo.eliminar_instancia(empresa_id)
+
     data = evo.crear_instancia(empresa_id)
 
     # Si ya existía, pedimos un QR nuevo en vez de fallar
