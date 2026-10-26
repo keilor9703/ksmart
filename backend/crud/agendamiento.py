@@ -107,7 +107,9 @@ def get_reporte_comisiones(
         .options(
             joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
             joinedload(models.Venta.operador),
+            joinedload(models.Venta.cliente),
         )
+        .order_by(models.Venta.fecha.desc())
     )
     if fecha_inicio:
         utc_start, _ = get_utc_boundaries(fecha_inicio, db)
@@ -117,6 +119,7 @@ def get_reporte_comisiones(
         q = q.filter(models.Venta.fecha <= utc_end)
 
     por_trabajador: dict = {}
+    detalle_citas: list = []
     for v in q.all():
         op_id = v.operador_id
         item = por_trabajador.setdefault(op_id, {
@@ -128,9 +131,26 @@ def get_reporte_comisiones(
         })
         item["num_servicios"] += 1
         item["total_ventas"] += float(v.total or 0)
+        comision_venta = 0.0
+        servicios_nombres = []
         for d in v.detalles:
             pct = d.producto.comision_pct if (d.producto and d.producto.comision_pct is not None) else comision_global
-            item["comision_total"] += (d.cantidad or 0) * (d.precio_unitario or 0) * (pct or 0) / 100.0
+            comision_venta += (d.cantidad or 0) * (d.precio_unitario or 0) * (pct or 0) / 100.0
+            servicios_nombres.append(d.producto.nombre if d.producto else (d.nombre_libre or "—"))
+        item["comision_total"] += comision_venta
+
+        # Detalle cita por cita — para que el dueño pueda ver una a una, no
+        # solo el acumulado por trabajador.
+        detalle_citas.append({
+            "venta_id":        v.id,
+            "fecha":           v.fecha.isoformat() if v.fecha else None,
+            "operador_id":     op_id,
+            "trabajador_nombre": item["nombre"],
+            "cliente_nombre":  v.cliente.nombre if v.cliente else "Consumidor final",
+            "servicio_nombre": ", ".join(servicios_nombres) or "—",
+            "total":           round(float(v.total or 0), 2),
+            "comision":        round(comision_venta, 2),
+        })
 
     total_ventas_global = sum(t["total_ventas"] for t in por_trabajador.values())
     trabajadores = []
@@ -147,6 +167,7 @@ def get_reporte_comisiones(
 
     return {
         "trabajadores": trabajadores,
+        "detalle": detalle_citas,
         "resumen": {
             "num_trabajadores":    len(trabajadores),
             "total_servicios":     sum(t["num_servicios"] for t in trabajadores),

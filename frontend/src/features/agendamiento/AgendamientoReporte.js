@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import {
   Groups, AttachMoney, EmojiEvents, FileDownload, CalendarToday,
-  Refresh, Percent, EventNote,
+  Refresh, Percent, EventNote, ExpandMore, ExpandLess, Person,
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
@@ -70,12 +70,16 @@ export default function AgendamientoReporte() {
   const [activeRange, setActiveRange] = useState('Este mes');
   const [reportData,  setReportData]  = useState(null);
   const [loading,     setLoading]     = useState(false);
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
+  const [trabajadorFiltro, setTrabajadorFiltro] = useState(null); // operador_id o null (todos)
 
   const fetchReporte = useCallback(async (inicio, fin) => {
     const start = inicio ?? fechaInicio;
     const end   = fin   ?? fechaFin;
     if (!start || !end) { toast.warning('Selecciona un rango de fechas.'); return; }
     setLoading(true);
+    setTrabajadorFiltro(null);
+    setDetalleAbierto(false);
     try {
       const { data } = await apiClient.get('/agendamiento/reporte-comisiones', {
         params: { fecha_inicio: start, fecha_fin: end },
@@ -101,6 +105,8 @@ export default function AgendamientoReporte() {
   const rows      = reportData?.trabajadores ?? [];
   const resumen   = reportData?.resumen ?? {};
   const topWorker = rows[0];
+  const detalle   = reportData?.detalle ?? [];
+  const detalleFiltrado = trabajadorFiltro == null ? detalle : detalle.filter(d => d.operador_id === trabajadorFiltro);
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 960, mx: 'auto' }}>
@@ -255,8 +261,16 @@ export default function AgendamientoReporte() {
                   {rows.map((row, idx) => {
                     const isTop   = idx === 0;
                     const inicial = (row.nombre || '?')[0].toUpperCase();
+                    const seleccionado = trabajadorFiltro === row.operador_id;
                     return (
-                      <TableRow key={row.operador_id ?? idx} hover sx={{ '&:last-child td': { border: 0 }, bgcolor: isTop ? `${GOLD}06` : 'transparent' }}>
+                      <TableRow
+                        key={row.operador_id ?? idx} hover
+                        onClick={() => { setTrabajadorFiltro(seleccionado ? null : row.operador_id); setDetalleAbierto(true); }}
+                        sx={{
+                          cursor: 'pointer', '&:last-child td': { border: 0 },
+                          bgcolor: seleccionado ? `${ACCENT}10` : (isTop ? `${GOLD}06` : 'transparent'),
+                        }}
+                      >
                         <TableCell sx={{ width: 32 }}>
                           {isTop ? <EmojiEvents sx={{ color: GOLD, fontSize: 18 }} /> : <Typography sx={{ fontSize: 12, color: 'text.disabled', fontWeight: 600 }}>#{idx + 1}</Typography>}
                         </TableCell>
@@ -302,6 +316,64 @@ export default function AgendamientoReporte() {
                 </TableBody>
               </Table>
             </TableContainer>
+          )}
+
+          {/* ── Detalle cita por cita ── */}
+          {detalle.length > 0 && (
+            <Box sx={{ mt: 3 }}>
+              <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 1 }}>
+                <Button
+                  size="small" onClick={() => setDetalleAbierto(v => !v)}
+                  endIcon={detalleAbierto ? <ExpandLess /> : <ExpandMore />}
+                  sx={{ textTransform: 'none', fontWeight: 700, color: ACCENT }}
+                >
+                  {detalleAbierto ? 'Ocultar detalle' : `Ver detalle de las ${detalleFiltrado.length} citas`}
+                  {trabajadorFiltro != null ? ` de ${rows.find(r => r.operador_id === trabajadorFiltro)?.nombre || ''}` : ''}
+                </Button>
+                {trabajadorFiltro != null && (
+                  <Chip
+                    size="small" label="Quitar filtro de trabajador"
+                    onClick={() => setTrabajadorFiltro(null)}
+                    onDelete={() => setTrabajadorFiltro(null)}
+                    icon={<Person sx={{ fontSize: 14 }} />}
+                    sx={{ fontSize: 11, bgcolor: `${ACCENT}15`, color: ACCENT, fontWeight: 600 }}
+                  />
+                )}
+              </Stack>
+              <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 1.5 }}>
+                Haz clic en un trabajador de la tabla de arriba para ver solo sus citas.
+              </Typography>
+
+              {detalleAbierto && (
+                <TableContainer component={Paper} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', maxHeight: 420 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        {['Fecha y hora', 'Trabajador', 'Cliente', 'Servicio', 'Total', 'Comisión'].map(h => (
+                          <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, bgcolor: 'action.hover' }}>
+                            {h}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {detalleFiltrado.map(d => (
+                        <TableRow key={d.venta_id} hover sx={{ '&:last-child td': { border: 0 } }}>
+                          <TableCell sx={{ fontSize: 12, color: 'text.secondary' }}>
+                            {d.fecha ? new Date(d.fecha).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: 12, fontWeight: 600 }}>{d.trabajador_nombre}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{d.cliente_nombre}</TableCell>
+                          <TableCell sx={{ fontSize: 12 }}>{d.servicio_nombre}</TableCell>
+                          <TableCell sx={{ fontSize: 12, fontWeight: 700, color: GREEN }}>{formatCurrency(d.total)}</TableCell>
+                          <TableCell sx={{ fontSize: 12, fontWeight: 700, color: GOLD }}>{formatCurrency(d.comision)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
           )}
         </>
       )}
