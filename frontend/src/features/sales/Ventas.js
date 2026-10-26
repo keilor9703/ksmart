@@ -1033,17 +1033,23 @@ useEffect(() => {
     handleProcessBarcodeRef.current = handleProcessBarcode;
 
     // ── Mostrador ──
+    // Compara sin tildes: un cliente guardado como "Cliente Público" o
+    // "Anónimo" (con tilde) no coincidía con los patrones sin tilde de abajo
+    // y el botón nunca lo encontraba, aunque sí apareciera al buscarlo a mano.
+    const normalizarTexto = (s) =>
+        String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
     const handleSetMostrador = () => {
         if (solicitaFe) {
             toast.warning('La Factura Electrónica exige un cliente identificado. Desactiva FE para vender como Mostrador.');
             return;
         }
-        const candidato = clientes.find(c =>
-            c.nombre.toLowerCase().includes('consumidor') ||
-            c.nombre.toLowerCase().includes('mostrador') ||
-            c.nombre.toLowerCase().includes('publico') ||
-            c.nombre.toLowerCase().includes('anonimo')
-        );
+        const candidato = clientes.find(c => {
+            const n = normalizarTexto(c.nombre);
+            return n.includes('consumidor') || n.includes('mostrador') ||
+                   n.includes('publico') || n.includes('anonimo') ||
+                   n.includes('generico') || n.includes('general');
+        });
         if (candidato) {
             setCliente(candidato); setClienteInput(candidato.nombre); setIsMostrador(true);
         } else {
