@@ -95,6 +95,7 @@ const ReservasRestaurante    = lazy(() => import('./features/restaurante/Reserva
 
 const Agendamiento       = lazy(() => import('./features/agendamiento/Agendamiento'));
 const AgendamientoConfig = lazy(() => import('./features/agendamiento/AgendamientoConfig'));
+const AgendamientoReporte = lazy(() => import('./features/agendamiento/AgendamientoReporte'));
 const AgendarPublico     = lazy(() => import('./features/agendamiento/AgendarPublico'));
 
 const TallerOrdenes      = lazy(() => import('./features/taller/TallerOrdenes'));
@@ -474,6 +475,7 @@ const hasAccess = useCallback((path) => {
                     <Route path="/restaurante/reservas"    element={<ProtectedRoute path="/restaurante/reservas"    hasAccess={hasAccess}><ReservasRestaurante   /></ProtectedRoute>} />
                     <Route path="/agendamiento"            element={<ProtectedRoute path="/agendamiento"            hasAccess={hasAccess}><Agendamiento user={user} /></ProtectedRoute>} />
                     <Route path="/agendamiento/config"     element={<ProtectedRoute path="/agendamiento/config"     hasAccess={hasAccess}><AgendamientoConfig /></ProtectedRoute>} />
+                    <Route path="/agendamiento/reporte"    element={<ProtectedRoute path="/agendamiento/reporte"    hasAccess={hasAccess}><AgendamientoReporte /></ProtectedRoute>} />
                     <Route path="/taller/ordenes"          element={<ProtectedRoute path="/taller/ordenes"          hasAccess={hasAccess}><TallerOrdenes /></ProtectedRoute>} />
                     <Route path="/taller/vehiculos"        element={<ProtectedRoute path="/taller/vehiculos"        hasAccess={hasAccess}><TallerVehiculos /></ProtectedRoute>} />
                     {user?.role?.name === 'Admin' && user?.empresa_id === 1 && (

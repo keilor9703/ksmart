@@ -71,13 +71,90 @@ def update_agendamiento_config(db: Session, empresa_id: int, data) -> models.Age
     cfg = get_or_create_agendamiento_config(db, empresa_id)
     for field in ("hora_apertura", "hora_cierre", "hora_descanso_inicio", "hora_descanso_fin",
                   "dias_laborales", "dias_no_laborales",
-                  "whatsapp", "requiere_anticipo", "porcentaje_anticipo", "mensaje_recordatorio"):
+                  "whatsapp", "requiere_anticipo", "porcentaje_anticipo", "mensaje_recordatorio",
+                  "comision_pct_global"):
         v = getattr(data, field, None)
         if v is not None:
             setattr(cfg, field, v)
     db.commit()
     db.refresh(cfg)
     return cfg
+
+
+def get_reporte_comisiones(
+    db: Session, empresa_id: int,
+    fecha_inicio: Optional[date] = None, fecha_fin: Optional[date] = None,
+) -> dict:
+    """
+    Cuántos servicios atendió cada trabajador por sus citas de Agendamiento y
+    cuánto se le debe de comisión — solo ventas con origen='agendamiento', para
+    no mezclar lo que el mismo trabajador haya vendido en el POS normal u otro
+    módulo. El % de comisión es el del servicio (Producto.comision_pct) si lo
+    tiene, si no el global de AgendamientoConfig — mismo patrón que Lavadero.
+    """
+    from crud.common import get_utc_boundaries
+
+    cfg = get_or_create_agendamiento_config(db, empresa_id)
+    comision_global = cfg.comision_pct_global or 0.0
+
+    q = (
+        db.query(models.Venta)
+        .filter(
+            models.Venta.empresa_id == empresa_id,
+            models.Venta.origen == "agendamiento",
+            models.Venta.estado_pago == "pagado",
+        )
+        .options(
+            joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
+            joinedload(models.Venta.operador),
+        )
+    )
+    if fecha_inicio:
+        utc_start, _ = get_utc_boundaries(fecha_inicio, db)
+        q = q.filter(models.Venta.fecha >= utc_start)
+    if fecha_fin:
+        _, utc_end = get_utc_boundaries(fecha_fin, db)
+        q = q.filter(models.Venta.fecha <= utc_end)
+
+    por_trabajador: dict = {}
+    for v in q.all():
+        op_id = v.operador_id
+        item = por_trabajador.setdefault(op_id, {
+            "operador_id": op_id,
+            "nombre": (v.operador.nombre_completo or v.operador.username) if v.operador else "Sin asignar",
+            "num_servicios": 0,
+            "total_ventas": 0.0,
+            "comision_total": 0.0,
+        })
+        item["num_servicios"] += 1
+        item["total_ventas"] += float(v.total or 0)
+        for d in v.detalles:
+            pct = d.producto.comision_pct if (d.producto and d.producto.comision_pct is not None) else comision_global
+            item["comision_total"] += (d.cantidad or 0) * (d.precio_unitario or 0) * (pct or 0) / 100.0
+
+    total_ventas_global = sum(t["total_ventas"] for t in por_trabajador.values())
+    trabajadores = []
+    for t in por_trabajador.values():
+        trabajadores.append({
+            "operador_id":    t["operador_id"],
+            "nombre":         t["nombre"],
+            "num_servicios":  t["num_servicios"],
+            "total_ventas":   round(t["total_ventas"], 2),
+            "comision_total": round(t["comision_total"], 2),
+            "porcentaje":     round(t["total_ventas"] / total_ventas_global * 100, 1) if total_ventas_global > 0 else 0.0,
+        })
+    trabajadores.sort(key=lambda t: t["total_ventas"], reverse=True)
+
+    return {
+        "trabajadores": trabajadores,
+        "resumen": {
+            "num_trabajadores":    len(trabajadores),
+            "total_servicios":     sum(t["num_servicios"] for t in trabajadores),
+            "total_ventas":        round(total_ventas_global, 2),
+            "comision_total":      round(sum(t["comision_total"] for t in trabajadores), 2),
+            "comision_pct_global": comision_global,
+        },
+    }
 
 
 def _es_dia_laboral(cfg: models.AgendamientoConfig, dia: date) -> bool:
@@ -207,6 +284,9 @@ def configurar_servicio_agendable(db: Session, empresa_id: int, producto_id: int
     if not prod:
         return None
     prod.agendable = data.agendable
+    # A diferencia de duración (donde None = "no lo cambies"), acá None SÍ es
+    # un valor válido: significa "usa la comisión global", no "no lo toques".
+    prod.comision_pct = getattr(data, "comision_pct", None)
     if data.duracion_minutos is not None:
         prod.duracion_minutos = data.duracion_minutos
     if data.agendable:

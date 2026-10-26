@@ -2140,6 +2140,11 @@ class AgendamientoConfig(Base, TenantMixin):
     # Plantilla de mensaje WhatsApp (si NULL se usa la plantilla por defecto)
     mensaje_recordatorio   = Column(Text, nullable=True)
 
+    # Comisión por defecto para el trabajador que atendió la cita (igual que
+    # LavaderoConfig.comision_pct_global). Un servicio puede tener su propio
+    # % en Producto.comision_pct; si no lo tiene, se usa este global.
+    comision_pct_global = Column(Float, default=0.0)
+
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 

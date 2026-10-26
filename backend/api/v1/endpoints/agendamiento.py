@@ -61,6 +61,22 @@ def update_config(
     return crud.update_agendamiento_config(db, empresa_id=current_user.empresa_id, data=payload)
 
 
+@router.get("/reporte-comisiones")
+def get_reporte_comisiones(
+    fecha_inicio: Optional[date] = Query(None),
+    fecha_fin: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user),
+):
+    """Cuántos servicios atendió cada trabajador y cuánto se le debe de
+    comisión, solo por citas de Agendamiento cobradas (no mezcla ventas de
+    otros módulos del mismo trabajador)."""
+    return crud.get_reporte_comisiones(
+        db, empresa_id=current_user.empresa_id,
+        fecha_inicio=fecha_inicio, fecha_fin=fecha_fin,
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Servicios agendables y trabajadores
 # ──────────────────────────────────────────────────────────────────────────────

@@ -3111,6 +3111,9 @@ class ServicioAgendableUpdate(BaseModel):
     agendable: bool = True
     duracion_minutos: Optional[int] = 30
     trabajador_ids: List[int] = []
+    # None = usa la comisión global de AgendamientoConfig; un número la
+    # sobreescribe solo para este servicio (mismo campo que ya usa Lavadero).
+    comision_pct: Optional[float] = None
 
 
 class ServicioAgendable(BaseModel):
@@ -3119,6 +3122,7 @@ class ServicioAgendable(BaseModel):
     agendable: bool = False
     duracion_minutos: Optional[int] = None
     precio: Optional[float] = None
+    comision_pct: Optional[float] = None
     trabajadores: List[TrabajadorMini] = []
     model_config = ConfigDict(from_attributes=True)
 
@@ -3246,6 +3250,7 @@ class AgendamientoConfigUpdate(BaseModel):
     requiere_anticipo: Optional[bool] = None
     porcentaje_anticipo: Optional[int] = None
     mensaje_recordatorio: Optional[str] = None
+    comision_pct_global: Optional[float] = None
 
 
 class AgendamientoConfigOut(BaseModel):
@@ -3259,6 +3264,7 @@ class AgendamientoConfigOut(BaseModel):
     requiere_anticipo: bool = False
     porcentaje_anticipo: int = 50
     mensaje_recordatorio: Optional[str] = None
+    comision_pct_global: float = 0.0
     model_config = ConfigDict(from_attributes=True)
 
 

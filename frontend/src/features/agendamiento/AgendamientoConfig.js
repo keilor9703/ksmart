@@ -81,6 +81,7 @@ export default function AgendamientoConfig() {
         ...s,
         _agendable: s.agendable,
         _duracion: s.duracion_minutos || 30,
+        _comision: s.comision_pct,
         _trabajadores: (s.trabajadores || []).map(t => t.id),
         _dirty: false,
       })));
@@ -112,6 +113,7 @@ export default function AgendamientoConfig() {
         whatsapp: config.whatsapp || null,
         requiere_anticipo: config.requiere_anticipo,
         porcentaje_anticipo: config.porcentaje_anticipo,
+        comision_pct_global: config.comision_pct_global,
       });
       {
         const activo = data.hora_descanso_inicio != null && data.hora_descanso_fin != null
@@ -142,9 +144,11 @@ export default function AgendamientoConfig() {
         agendable: srv._agendable,
         duracion_minutos: Number(srv._duracion) || 30,
         trabajador_ids: srv._trabajadores,
+        comision_pct: srv._comision === '' || srv._comision == null ? null : Number(srv._comision),
       });
       setServicios(prev => prev.map(s => s.id === srv.id ? {
         ...s, agendable: data.agendable, duracion_minutos: data.duracion_minutos,
+        comision_pct: data.comision_pct, _comision: data.comision_pct,
         trabajadores: data.trabajadores || [], _dirty: false,
       } : s));
       toast.success(`"${srv.nombre}" actualizado.`);
@@ -303,6 +307,14 @@ export default function AgendamientoConfig() {
                 </Alert>
               )}
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField fullWidth size="small" type="number" label="Comisión por defecto del trabajador (%)"
+                value={config.comision_pct_global ?? 0}
+                onChange={e => patchConfig({ comision_pct_global: Number(e.target.value) })}
+                helperText="Se aplica a las citas cobradas cuando el servicio no tiene un % propio. Ve a Reportes → Comisiones para ver cuánto se le debe a cada trabajador."
+                InputProps={{ inputProps: { min: 0, max: 100, step: 1 } }}
+              />
+            </Grid>
             <Grid item xs={12}>
               <Button variant="contained" disableElevation onClick={handleSaveConfig}
                 disabled={savingConfig}
@@ -401,6 +413,18 @@ export default function AgendamientoConfig() {
                         </Select>
                       </FormControl>
                     </Grid>
+                    {on && (
+                      <Grid item xs={12} sm={4}>
+                        <TextField fullWidth size="small" type="number"
+                          label="Comisión de este servicio (%)"
+                          placeholder={`Global: ${config?.comision_pct_global ?? 0}%`}
+                          value={srv._comision ?? ''}
+                          onChange={e => patch(srv.id, { _comision: e.target.value })}
+                          helperText="Vacío = usa la comisión global"
+                          InputProps={{ inputProps: { min: 0, max: 100, step: 1 } }}
+                        />
+                      </Grid>
+                    )}
                   </Grid>
                   {srv._dirty && (
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.2, gap: 1 }}>

@@ -117,6 +117,7 @@ export const MODULE_ICONS = {
   // Agendamiento de citas (Tonos Teal/Esmeralda)
   '/agendamiento':         { icon: <EventNote />,      color: '#0D9488', label: 'Agendamiento' },
   '/agendamiento/config':  { icon: <EventAvailable />, color: '#0F766E', label: 'Config Agendamiento' },
+  '/agendamiento/reporte': { icon: <BarChart />,       color: '#0891B2', label: 'Reporte Agendamiento' },
 
   // Taller de Mecánica (Tonos Naranja/Gris — herramientas)
   '/taller/ordenes':   { icon: <Build />,        color: '#EA580C', label: 'Taller de Mecánica' },

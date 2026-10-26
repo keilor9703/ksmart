@@ -3071,6 +3071,17 @@ def run_migrations():
                 _mark_migration_applied(conn, migration_v140)
                 logger.info("V140 (lavadero multi-sede) aplicada.")
 
+            # ═══════════════════════════════════════════════════════════════
+            # V141 — Comisión por defecto para Agendamiento (igual que
+            # LavaderoConfig.comision_pct_global). El % por servicio ya existe
+            # en Producto.comision_pct (compartido con Lavadero).
+            # ═══════════════════════════════════════════════════════════════
+            migration_v141 = "v141_agendamiento_comision"
+            if not _migration_already_applied(conn, migration_v141):
+                _add_column_safe(conn, "agendamiento_config", "comision_pct_global", "FLOAT DEFAULT 0")
+                _mark_migration_applied(conn, migration_v141)
+                logger.info("V141 (comisión agendamiento) aplicada.")
+
     except Exception as e:
         logger.exception("Error ejecutando migraciones: %s", e)
         raise

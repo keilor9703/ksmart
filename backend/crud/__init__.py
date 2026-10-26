@@ -214,4 +214,5 @@ from crud.agendamiento import (
     get_citas, get_cita, create_cita, update_cita,
     cambiar_estado_cita, delete_cita,
     preparar_cobro_cita, vincular_cita_a_venta,
+    get_reporte_comisiones,
 )
