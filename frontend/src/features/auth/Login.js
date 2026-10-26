@@ -57,17 +57,22 @@ const slideUp = keyframes`
 `;
 
 // ─── Estilos de campo reutilizables ──────────────────────────────────────────
+// Contraste subido a propósito respecto a la versión anterior: con fondo casi
+// transparente (0.035) y borde al 16% de opacidad, los campos vacíos eran casi
+// invisibles sobre el fondo oscuro hasta hacer foco — el usuario no "veía" el
+// formulario, solo el placeholder flotando. Se mantiene la estética oscura,
+// solo se hace el campo legible en su estado normal (sin foco).
 const fieldSx = {
     '& .MuiInputLabel-root': {
-        color: '#8b97a8', fontSize: 14, fontWeight: 500,
+        color: '#aab6c7', fontSize: 14, fontWeight: 500,
         letterSpacing: 0, textTransform: 'none',
     },
     '& .MuiInputLabel-root.Mui-focused': { color: '#22c55e', fontWeight: 600 },
-    '& .MuiFormHelperText-root': { color: '#64748b', fontSize: 12, mt: 0.6, ml: 0.5 },
+    '& .MuiFormHelperText-root': { color: '#94a3b8', fontSize: 12, mt: 0.6, ml: 0.5 },
     '& .MuiFormHelperText-root.Mui-error': { color: '#f87171' },
     '& .MuiOutlinedInput-root': {
         borderRadius: 3,
-        backgroundColor: 'rgba(255, 255, 255, 0.035)',
+        backgroundColor: 'rgba(255, 255, 255, 0.07)',
         backdropFilter: 'blur(12px)',
         color: '#f1f5f9',
         fontSize: 15,
@@ -84,15 +89,15 @@ const fieldSx = {
                 borderRadius: 'inherit',
             },
         },
-        '& fieldset': { borderColor: 'rgba(148, 163, 184, 0.16)', borderWidth: 1.5 },
-        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.05)' },
-        '&:hover fieldset': { borderColor: 'rgba(148, 163, 184, 0.38)' },
+        '& fieldset': { borderColor: 'rgba(148, 163, 184, 0.34)', borderWidth: 1.5 },
+        '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+        '&:hover fieldset': { borderColor: 'rgba(148, 163, 184, 0.55)' },
         '&.Mui-focused': { boxShadow: '0 0 0 4px rgba(34, 197, 94, 0.12)' },
         '&.Mui-focused fieldset': { borderColor: '#22c55e', borderWidth: 1.5 },
         '&.Mui-error fieldset': { borderColor: '#f87171' },
         '&.Mui-error.Mui-focused': { boxShadow: '0 0 0 4px rgba(248, 113, 113, 0.12)' },
     },
-    '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#5b6b80', fontSize: 19, transition: 'color 0.2s ease' },
+    '& .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#8b98ab', fontSize: 19, transition: 'color 0.2s ease' },
     '& .MuiOutlinedInput-root.Mui-focused .MuiInputAdornment-root .MuiSvgIcon-root': { color: '#22c55e' },
     '&.orange-field': {
         '& .MuiInputLabel-root.Mui-focused': { color: '#0891B2' },
