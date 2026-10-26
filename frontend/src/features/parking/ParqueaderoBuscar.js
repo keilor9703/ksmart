@@ -465,6 +465,11 @@ function EditarTelefonoDialog({ open, onClose, acceso, onSuccess }) {
       const { data: waData } = await apiClient
         .post(`/parqueadero/accesos/${acceso.id}/whatsapp-comprobante`)
         .catch(() => ({ data: null }));
+      if (waData?.enviado) {
+        toast.success('Teléfono actualizado y WhatsApp enviado.');
+        onSuccess?.();
+        return;
+      }
       if (waData?.wa_url) {
         window.open(waData.wa_url, '_blank', 'noopener');
         toast.success('Teléfono actualizado y WhatsApp enviado.');

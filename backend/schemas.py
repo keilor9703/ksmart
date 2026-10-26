@@ -2308,6 +2308,13 @@ class GenerarWhatsAppRequest(BaseModel):
     minutos:          Optional[int] = None   # Para variable {minutos} en recibo_salida
     metodo_pago_text: Optional[str] = None   # Para variable {metodo_pago} en recibo_salida
 
+    # Si True, intenta mandar el mensaje directo por Evolution API (si la
+    # empresa tiene su WhatsApp vinculado) en vez de solo generarlo para
+    # previsualizar/editar. Lo usan los flujos de "enviar ya" (sin paso de
+    # edición); el diálogo de previsualización (BotonWhatsApp) lo deja en
+    # False mientras el usuario puede editar el mensaje.
+    enviar_directo:   bool = False
+
     # Permitir editar el mensaje antes de enviarlo (la UI muestra preview editable)
     mensaje_personalizado: Optional[str] = None
 

@@ -141,8 +141,9 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
             monto_override:   cobroFinal,
             minutos:          minCobrar,
             metodo_pago_text: metodoPago,
+            enviar_directo:   true,
           });
-          if (wa.wa_url) window.open(wa.wa_url, '_blank', 'noopener');
+          if (!wa.enviado && wa.wa_url) window.open(wa.wa_url, '_blank', 'noopener');
         } catch (waErr) {
           console.warn('Salida registrada pero WhatsApp falló:', waErr);
         }
@@ -232,8 +233,13 @@ export function ParqueaderoSalidaHorasDialog({ open, onClose, acceso, onSuccess 
                         monto_override:   salidaData.cobroFinal,
                         minutos:          salidaData.minCobrar,
                         metodo_pago_text: salidaData.metodoPago,
+                        enviar_directo:   true,
                       });
-                      if (wa.wa_url) window.open(wa.wa_url, '_blank', 'noopener');
+                      if (wa.enviado) {
+                        toast.success('Comprobante enviado por WhatsApp');
+                      } else if (wa.wa_url) {
+                        window.open(wa.wa_url, '_blank', 'noopener');
+                      }
                     } catch {
                       toast.error('No se pudo generar el mensaje de WhatsApp.');
                     }

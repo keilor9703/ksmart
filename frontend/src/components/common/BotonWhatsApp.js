@@ -159,21 +159,14 @@ function WhatsAppDialog({
     }
   };
 
-  // Cuando el usuario edita, regeneramos el wa_url manualmente sin llamar API
-  const waUrlConMensajeEditado = () => {
-    if (!data) return null;
-    const mensajeFinal = mensajeEditado || data.mensaje;
-    const encoded = encodeURIComponent(mensajeFinal);
-    return `https://wa.me/${data.telefono}?text=${encoded}`;
-  };
-
   const handleEnviar = async () => {
-    const url = waUrlConMensajeEditado();
-    if (!url) return;
+    if (!data?.telefono) return;
+    const mensajeFinal = mensajeEditado || data.mensaje;
     setLoading(true);
     try {
-      // Si el mensaje fue editado, registrar el envío con el nuevo texto
-      if (mensajeEditado !== data.mensaje) {
+      if (data.tiene_qr) {
+        // No se puede adjuntar el QR por un envío de solo texto — se deja
+        // el flujo manual de siempre para que el empleado adjunte la imagen.
         await apiClient.post('/parqueadero/whatsapp/generar', {
           vehiculo_id:    vehiculoId,
           suscripcion_id: suscripcionId,
@@ -182,13 +175,28 @@ function WhatsAppDialog({
           monto_override: montoOverride,
           mensaje_personalizado: mensajeEditado,
         });
+        window.open(`https://wa.me/${data.telefono}?text=${encodeURIComponent(mensajeFinal)}`, '_blank', 'noopener');
+        toast.success('Mensaje listo en WhatsApp. Adjunta el QR y pulsa "enviar".');
+      } else {
+        const { data: resp } = await apiClient.post('/parqueadero/whatsapp/generar', {
+          vehiculo_id:    vehiculoId,
+          suscripcion_id: suscripcionId,
+          telefono:       data.telefono,
+          tipo,
+          monto_override: montoOverride,
+          mensaje_personalizado: mensajeEditado,
+          enviar_directo: true,
+        });
+        if (resp.enviado) {
+          toast.success('Mensaje enviado por WhatsApp');
+        } else if (resp.wa_url) {
+          window.open(resp.wa_url, '_blank', 'noopener');
+          toast.success('Mensaje listo en WhatsApp. Pulsa "enviar" para que llegue al cliente.');
+        }
       }
-      // Abrir WhatsApp en nueva pestaña
-      window.open(url, '_blank', 'noopener');
-      toast.success('Mensaje listo en WhatsApp. Pulsa "enviar" para que llegue al cliente.');
       onSent?.();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al registrar el envío.');
+      toast.error(err.response?.data?.detail || 'Error al enviar el mensaje.');
     } finally {
       setLoading(false);
     }
@@ -324,7 +332,7 @@ function WhatsAppDialog({
                      <OpenInNew />}
           sx={{ bgcolor: WA_GREEN, '&:hover': { bgcolor: '#1ebe5d' }, fontWeight: 700 }}
         >
-          Abrir WhatsApp
+          Enviar
         </Button>
       </DialogActions>
     </Dialog>

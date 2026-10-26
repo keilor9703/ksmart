@@ -28,6 +28,7 @@ import { imprimirReciboLavadero } from '../../utils/printLavadero';
 import LinkPagoModal from '../../components/common/LinkPagoModal';
 import CurrencyField from '../../components/common/CurrencyField';
 import { filterOptions50 } from '../../utils/autocompleteFilters';
+import { enviarWhatsApp } from '../../utils/enviarWhatsApp';
 
 const ACCENT  = '#0891B2';
 const BLUE    = '#3B82F6';
@@ -963,12 +964,10 @@ export default function LavaderoVentas({ user }) {
   };
 
   /* ── WhatsApp receipt ─────────────────────────────────────────────────── */
-  const handleEnviarWARecibo = () => {
+  const handleEnviarWARecibo = async () => {
     if (!cobraData) return;
     const tel = cobraData.cliente_telefono;
     if (!tel) { toast.warning('El cliente no tiene teléfono registrado.'); return; }
-    const num = tel.replace(/\D/g, '');
-    const countryNum = num.startsWith('57') ? num : `57${num}`;
     const fechaSalida = new Date(cobraData.fecha_salida || Date.now());
     const fechaStr = fechaSalida.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const horaStr  = fechaSalida.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
@@ -992,7 +991,7 @@ export default function LavaderoVentas({ user }) {
       if (saldoPuntos !== null && saldoPuntos !== undefined) extra += `\n⭐ Saldo de puntos: ${saldoPuntos}`;
     }
     const msg = `🚗 *Recibo de Lavado - ${nombreLav}*\n\nPlaca: *${cobraData.placa}*${cobraData.tipo_vehiculo ? ` (${cobraData.tipo_vehiculo})` : ''}\n📅 ${fechaStr} ${horaStr}\n\n${detallesStr}${extra}\n\n💰 *Total: $${Number(cobraData.total).toLocaleString('es-CO')}*\nPago: ${cobraData.metodo_pago}\n\n¡Gracias por su preferencia! 🙏`;
-    window.open(`https://wa.me/${countryNum}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+    await enviarWhatsApp(tel, msg);
   };
 
   /* ── Board grouping ───────────────────────────────────────────────────── */

@@ -22,6 +22,7 @@ import DialogActions from '@mui/material/DialogActions';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
 import { sunmiDisponible, imprimirRecibo as imprimirReciboSunmi, padLR } from '../../utils/sunmiPrinter';
 import { printHtml } from '../../utils/printHtml';
+import { enviarWhatsApp } from '../../utils/enviarWhatsApp';
 
 const ACCENT = '#0891B2';
 const GREEN  = '#10B981';
@@ -1076,10 +1077,7 @@ const confirmarPago = async () => {
               const texto = generarTextoRecibo(
                 reciboModal.cuota, reciboModal.monto, reciboModal.saldoRestante
               );
-              window.open(
-                `https://wa.me/57${reciboModal.cuota?.cliente_telefono}?text=${encodeURIComponent(texto)}`,
-                '_blank'
-              );
+              enviarWhatsApp(reciboModal.cuota?.cliente_telefono, texto);
             }}
             sx={{ bgcolor: '#22C55E', fontWeight: 800, borderRadius: 2,
               '&:hover': { bgcolor: '#16A34A' } }}>

@@ -91,6 +91,17 @@ def _generar_comprobante_entrada_wa(
     texto_url = urllib.parse.quote(mensaje, safe='')
     wa_url = f"https://wa.me/{telefono_valido}?text={texto_url}"
 
+    # Si la empresa ya tiene su WhatsApp vinculado (Evolution API), se manda
+    # directo desde ahí — wa_url queda igual como respaldo si el envío falla
+    # o no hay vinculación, para que el frontend lo abra manualmente.
+    enviado = False
+    from services import evolution_service as evo
+    if evo.is_configured():
+        empresa_wa = db.query(models.Empresa).filter_by(id=empresa_id).first()
+        if empresa_wa and empresa_wa.whatsapp_instancia:
+            r = evo.enviar_texto(empresa_id, telefono_valido, mensaje)
+            enviado = not r.get("error")
+
     # Registrar el envío
     db.add(models.EnvioWhatsApp(
         empresa_id      = empresa_id,
@@ -103,7 +114,7 @@ def _generar_comprobante_entrada_wa(
     ))
     db.commit()
 
-    return {"wa_url": wa_url, "mensaje": mensaje, "advertencia": advertencia}
+    return {"wa_url": wa_url, "mensaje": mensaje, "advertencia": advertencia, "enviado": enviado}
 
 
 def registrar_entrada_horas(
@@ -171,6 +182,7 @@ def registrar_entrada_horas(
         "wa_url":      None,
         "mensaje":     None,
         "advertencia": None,
+        "enviado":     False,
     }
 
     # ── Generar WhatsApp si se pidió y hay teléfono válido ──────────────────
@@ -190,6 +202,7 @@ def registrar_entrada_horas(
                 resultado["wa_url"]      = wa_data["wa_url"]
                 resultado["mensaje"]     = wa_data["mensaje"]
                 resultado["advertencia"] = wa_data.get("advertencia")
+                resultado["enviado"]     = wa_data.get("enviado", False)
             except Exception as ex:
                 resultado["advertencia"] = f"No se pudo generar el WhatsApp: {ex}"
 

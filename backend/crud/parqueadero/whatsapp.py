@@ -240,6 +240,18 @@ def generar_link_whatsapp(
     texto_url = urllib.parse.quote(mensaje, safe='')
     wa_url = f"https://wa.me/{telefono_norm}?text={texto_url}"
 
+    # Envío directo por Evolution API — solo si se pidió explícitamente y no
+    # hay QR para adjuntar (un envío de texto no puede llevar la imagen; en
+    # ese caso hay que dejar que lo mande manual para poder adjuntar el QR).
+    enviado = False
+    if payload.enviar_directo and not qr_data_uri:
+        from services import evolution_service as evo
+        if evo.is_configured():
+            empresa_wa = db.query(models.Empresa).filter_by(id=empresa_id).first()
+            if empresa_wa and empresa_wa.whatsapp_instancia:
+                r = evo.enviar_texto(empresa_id, telefono_norm, mensaje)
+                enviado = not r.get("error")
+
     envio = models.EnvioWhatsApp(
         empresa_id      = empresa_id,
         vehiculo_id     = vehiculo.id if vehiculo else None,
@@ -260,6 +272,7 @@ def generar_link_whatsapp(
         "qr_data_uri":   qr_data_uri,
         "metodo_nombre": metodo_nombre,
         "advertencia":   advertencia,
+        "enviado":       enviado,
     }
 
 

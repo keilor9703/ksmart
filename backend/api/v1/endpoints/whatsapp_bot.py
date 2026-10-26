@@ -260,3 +260,40 @@ def update_config(
         "notificar_estado_pedido": bool(empresa.notificar_estado_pedido),
         "mensaje_bienvenida_bot": empresa.mensaje_bienvenida_bot,
     }
+
+
+# ─── Envío genérico ────────────────────────────────────────────────────────
+# Un solo punto de salida para "mandarle un WhatsApp a un cliente" usado por
+# todos los módulos (pedidos, cobranza, parqueadero, taller, lavadero,
+# agendamiento, clientes...). Antes cada uno armaba su propio link wa.me y
+# obligaba al empleado a enviarlo desde su WhatsApp personal, incluso con el
+# WhatsApp de la empresa ya vinculado. Con esto: si está vinculado, se manda
+# directo desde aquí; si no (o si falla), se sigue devolviendo el link wa.me
+# de siempre para que el frontend lo abra como respaldo.
+
+class EnviarWhatsAppIn(BaseModel):
+    telefono: str
+    mensaje: str
+
+
+def _wa_url_fallback(telefono: str, mensaje: str) -> str:
+    import urllib.parse
+    numero = evo.normalizar_numero(telefono)
+    return f"https://wa.me/{numero}?text={urllib.parse.quote(mensaje)}"
+
+
+@router.post("/enviar")
+def enviar_whatsapp_generico(
+    payload: EnviarWhatsAppIn,
+    current_user: models.User = Depends(get_current_active_user),
+):
+    empresa = current_user.empresa
+    if evo.is_configured() and empresa.whatsapp_instancia and payload.telefono:
+        r = evo.enviar_texto(empresa.id, payload.telefono, payload.mensaje)
+        if not r.get("error"):
+            return {"enviado": True, "via": "evolution"}
+        logger.info(
+            "Envío directo de WhatsApp falló (empresa %s): %s — se usa wa.me como respaldo",
+            empresa.id, r["error"],
+        )
+    return {"enviado": False, "via": "wa_web", "url": _wa_url_fallback(payload.telefono, payload.mensaje)}

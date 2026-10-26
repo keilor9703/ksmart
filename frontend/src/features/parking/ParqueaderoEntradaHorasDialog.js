@@ -84,8 +84,10 @@ export function ParqueaderoEntradaHorasDialog({
         enviar_whatsapp:  seEnviaraWA,
       });
 
-      if (data.wa_url) {
+      if (!data.enviado && data.wa_url) {
         window.open(data.wa_url, '_blank', 'noopener');
+      } else if (data.enviado) {
+        toast.success('Comprobante enviado por WhatsApp');
       }
 
       setAccesoCreado(data.acceso);
@@ -112,7 +114,11 @@ export function ParqueaderoEntradaHorasDialog({
       const { data: wa } = await apiClient.post(
         `/parqueadero/accesos/${accesoCreado.id}/whatsapp-comprobante`
       );
-      if (wa.wa_url) window.open(wa.wa_url, '_blank', 'noopener');
+      if (wa.enviado) {
+        toast.success('Comprobante enviado por WhatsApp');
+      } else if (wa.wa_url) {
+        window.open(wa.wa_url, '_blank', 'noopener');
+      }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'No se pudo generar el mensaje de WhatsApp.');
     }

@@ -16,6 +16,7 @@ import apiClient from '../../api';
 import CurrencyField from '../../components/common/CurrencyField';
 import { BRAND_OPTIONS, getModelOptions } from '../parking/vehicleBrands';
 import { filterOptions50 } from '../../utils/autocompleteFilters';
+import { enviarWhatsApp } from '../../utils/enviarWhatsApp';
 
 // Un solo lugar con el flujo de estados por tipo de orden — la Kanban y el
 // stepper del detalle se generan a partir de esto, así que agregar un paso
@@ -568,11 +569,9 @@ const DetalleOrdenDialog = ({ open, onClose, orden, productos, clientes, onChang
     }
   };
 
-  const enviarWaListo = () => {
+  const enviarWaListo = async () => {
     if (!waListo) return;
-    const digits = (waListo.telefono || '').replace(/\D/g, '');
-    const full = digits.startsWith('57') ? digits : `57${digits}`;
-    window.open(`https://wa.me/${full}?text=${encodeURIComponent(waListo.mensaje)}`, '_blank');
+    await enviarWhatsApp(waListo.telefono, waListo.mensaje);
     setWaListo(null);
   };
 

@@ -8,6 +8,7 @@ import {
   CheckCircle, Close, WhatsApp, QrCode2, OpenInNew, Notes,
 } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
+import { enviarWhatsApp } from '../../utils/enviarWhatsApp';
 
 export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, clienteTelefono }) {
   const theme = useTheme();
@@ -21,14 +22,11 @@ export default function LinkPagoModal({ open, onClose, onConfirm, linkConfig, cl
   const isUrl      = linkConfig.tipo === 'url';
   const isTexto    = linkConfig.tipo === 'texto';
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     const num = telefono.replace(/\D/g, '');
     if (!num) return;
-    const countryNum = num.startsWith('57') ? num : `57${num}`;
-    const msg = encodeURIComponent(
-      `Hola! Tu pago puede hacerse a través de este link: ${linkConfig.link_url}`
-    );
-    window.open(`https://wa.me/${countryNum}?text=${msg}`, '_blank');
+    const msg = `Hola! Tu pago puede hacerse a través de este link: ${linkConfig.link_url}`;
+    await enviarWhatsApp(num, msg);
   };
 
   const handleConfirm = async () => {

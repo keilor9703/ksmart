@@ -23,6 +23,7 @@ import {
 import { keyframes } from '@mui/system';
 import apiClient from '../../api';
 import { formatCurrency } from '../../utils/formatters';
+import { enviarWhatsApp } from '../../utils/enviarWhatsApp';
 import SaaSUpgradeManager from '../saas/components/SaaSUpgradeManager';
 import CacaoPriceWidget from './CacaoPriceWidget';
 import HelpGuideTopBar from '../../components/onboarding/HelpGuideTopBar';
@@ -716,14 +717,12 @@ const marqueeScroll = keyframes`
   100% { transform: translateX(-50%); }
 `;
 
-const abrirWhatsAppCumpleanos = (cliente) => {
+const abrirWhatsAppCumpleanos = async (cliente) => {
   const telefono = cliente?.telefono;
   if (!telefono?.trim()) return;
-  const digits = telefono.replace(/\D/g, '');
-  const full = digits.startsWith('57') ? digits : `57${digits}`;
   const primerNombre = (cliente.nombre || '').trim().split(/\s+/)[0] || '';
   const msg = `¡Feliz cumpleaños${primerNombre ? `, ${primerNombre}` : ''}! 🎉🎂 Todo el equipo te desea un día increíble. ¡Gracias por ser parte de nuestros clientes!`;
-  window.open(`https://wa.me/${full}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+  await enviarWhatsApp(telefono, msg);
 };
 
 function BirthdayRibbon({ clientes }) {

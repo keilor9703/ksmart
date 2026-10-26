@@ -10,6 +10,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { toast } from 'react-toastify';
 import apiClient from '../../api';
+import { enviarWhatsApp } from '../../utils/enviarWhatsApp';
 
 const DIAS_ANTICIPACION = 3; // Cuotas que vencen en los próximos N días
 
@@ -48,11 +49,9 @@ function CuotaRow({ cuota, empresa, sentIds, onMarkSent }) {
     ? 'Vence hoy'
     : `${diasRestantes} día(s)`;
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = buildWhatsAppText(cuota, empresa);
-    const telefono = (cuota.cliente_telefono || '').replace(/\D/g, '');
-    const numero = telefono.startsWith('57') ? telefono : `57${telefono}`;
-    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(text)}`, '_blank');
+    await enviarWhatsApp(cuota.cliente_telefono, text);
     onMarkSent(cuota.id);
   };
 
@@ -151,13 +150,11 @@ export default function RecordatoriosCuotasDialog({ open, onClose, empresa }) {
       return;
     }
     pendientes.forEach((cuota, idx) => {
-      setTimeout(() => {
+      setTimeout(async () => {
         const text = buildWhatsAppText(cuota, empresa);
-        const telefono = (cuota.cliente_telefono || '').replace(/\D/g, '');
-        const numero = telefono.startsWith('57') ? telefono : `57${telefono}`;
-        window.open(`https://wa.me/${numero}?text=${encodeURIComponent(text)}`, '_blank');
+        await enviarWhatsApp(cuota.cliente_telefono, text);
         handleMarkSent(cuota.id);
-      }, idx * 800); // espaciado para evitar bloqueo de pop-ups
+      }, idx * 800); // espaciado para no abrir muchas pestañas de golpe si cae al respaldo wa.me
     });
   };
 

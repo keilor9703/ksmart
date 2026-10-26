@@ -25,6 +25,7 @@ import apiClient, {
 } from '../../api';
 import usePolling from '../../hooks/usePolling';
 import { filterOptions50 } from '../../utils/autocompleteFilters';
+import { enviarWhatsApp } from '../../utils/enviarWhatsApp';
 
 dayjs.locale('es');
 const localizer = dayjsLocalizer(dayjs);
@@ -254,7 +255,6 @@ export default function Agendamiento({ user }) {
       const { data } = await apiClient.get('/users/me');
       negocio = data?.empresa?.nombre || data?.empresa_nombre || negocio;
     } catch {}
-    const numero = tel.length === 10 ? `57${tel}` : tel;
     const cuando = `${fmtFechaLarga(new Date(cita.fecha_inicio))} a las ${fmtHora(cita.fecha_inicio)}`;
     const msg = [
       `👋 ¡Hola ${cita.cliente_display || ''}! Te escribe *${negocio}* 🗓️`,
@@ -266,7 +266,7 @@ export default function Agendamiento({ user }) {
       ``,
       `¡Te esperamos! ✨`,
     ].join('\n');
-    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, '_blank');
+    await enviarWhatsApp(tel, msg);
   };
 
   const compartirLink = async () => {
