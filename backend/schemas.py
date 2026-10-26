@@ -3275,7 +3275,9 @@ class AgendamientoConfigOut(BaseModel):
 class CitaCobroPrep(BaseModel):
     cita_id: int
     precio: float
-    cliente: Cliente
+    # None cuando la cita no tiene cliente asociado (el cliente no quiso dar
+    # sus datos) — el POS la cobra igual, como venta de mostrador.
+    cliente: Optional[Cliente] = None
     producto: Producto
     trabajador_id: int
     trabajador_nombre: Optional[str] = None

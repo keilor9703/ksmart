@@ -712,13 +712,15 @@ def preparar_cobro_cita(db: Session, empresa_id: int, cita_id: int) -> dict:
     if not prod:
         raise AgendamientoError("El servicio no existe.")
 
+    # La gran mayoría de clientes no dan nombre ni datos de contacto —no hay
+    # por qué exigirlos: si la cita no tiene cliente, se cobra igual que
+    # cualquier venta de mostrador en el POS (cliente=None → consumidor
+    # final), en vez de bloquear el cobro.
     cliente_id = _asegurar_cliente_de_cita(db, empresa_id, cita)
-    if not cliente_id:
-        raise AgendamientoError("La cita no tiene datos de cliente para cobrar.")
     cliente = db.query(models.Cliente).filter(
         models.Cliente.id == cliente_id,
         models.Cliente.empresa_id == empresa_id,
-    ).first()
+    ).first() if cliente_id else None
 
     trabajador = db.query(models.User).filter(models.User.id == cita.user_id).first()
     trabajador_nombre = (trabajador.nombre_completo or trabajador.username) if trabajador else None
