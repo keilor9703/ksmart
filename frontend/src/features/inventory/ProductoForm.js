@@ -258,6 +258,7 @@ const ProductoForm = ({
   const [stockActual,         setStockActual]         = useState(0);
   const [manejaLotes,         setManejaLotes]         = useState(false);
   const [unidadesPorEmpaque,  setUnidadesPorEmpaque]  = useState('1');
+  const [comisionPct,         setComisionPct]         = useState('');
   const [stockInicial,        setStockInicial]        = useState('');
   const [numeroLote,          setNumeroLote]          = useState('');
   const [fechaVencimiento,    setFechaVencimiento]    = useState('');
@@ -330,6 +331,7 @@ const ProductoForm = ({
       setStockActual(productoToEdit.stock_actual ?? 0);
       setManejaLotes(productoToEdit.maneja_lotes || false);
       setUnidadesPorEmpaque(String(productoToEdit.unidades_por_empaque || 1));
+      setComisionPct(productoToEdit.comision_pct != null ? String(productoToEdit.comision_pct) : '');
       setImagenes(productoToEdit.imagenes || []);
       setMostrarEnCatalogo(productoToEdit.mostrar_en_catalogo || false);
       setDescripcion(productoToEdit.descripcion || '');
@@ -717,6 +719,7 @@ const ProductoForm = ({
     unidades_por_empaque: esServicio ? 1 : (parseFloat(unidadesPorEmpaque) > 1 ? parseFloat(unidadesPorEmpaque) : 1),
     imagenes,
     mostrar_en_catalogo: mostrarEnCatalogo,
+    comision_pct: comisionPct === '' ? null : parseFloat(comisionPct),
     descripcion: descripcion || null,
     tiene_variantes: tieneVariantes,
     ...(!productoToEdit && !esServicio && {
@@ -1262,6 +1265,18 @@ const ProductoForm = ({
                       </Box>
                     </Grid>
                   )}
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth size="small" type="number"
+                      label="Comisión para quien lo vende (%)"
+                      value={comisionPct}
+                      onChange={e => setComisionPct(e.target.value)}
+                      helperText={esServicio
+                        ? 'Vacío = usa la comisión global del módulo (Lavadero/Agendamiento)'
+                        : 'Vacío = este producto NO comisiona (ej. una gaseosa). Ponle un % solo si, como un tinte, también representa trabajo del estilista/operario.'}
+                      InputProps={{ inputProps: { min: 0, max: 100, step: 1 } }}
+                    />
+                  </Grid>
                 </Grid>
               </SectionCard>
 

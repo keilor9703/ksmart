@@ -86,11 +86,22 @@ def get_reporte_comisiones(
     fecha_inicio: Optional[date] = None, fecha_fin: Optional[date] = None,
 ) -> dict:
     """
-    Cuántos servicios atendió cada trabajador por sus citas de Agendamiento y
-    cuánto se le debe de comisión — solo ventas con origen='agendamiento', para
-    no mezclar lo que el mismo trabajador haya vendido en el POS normal u otro
-    módulo. El % de comisión es el del servicio (Producto.comision_pct) si lo
-    tiene, si no el global de AgendamientoConfig — mismo patrón que Lavadero.
+    Cuántos servicios hizo cada trabajador y cuánto se le debe de comisión —
+    cubre CUALQUIER venta pagada con ese trabajador como operador, venga o no
+    de una cita agendada (la mayoría de cortes en una peluquería son sin
+    cita previa). Lo que decide si algo comisiona no es el módulo de origen,
+    sino la línea vendida:
+
+    - Servicios (Producto.es_servicio): comisionan siempre — su propio %
+      (Producto.comision_pct) si lo tienen, si no el global de esta config.
+    - Productos físicos (una gaseosa, por ejemplo): NO comisionan por
+      defecto. Solo si el producto tiene su propio % puesto a mano (ej. un
+      tinte que también es "mano de obra" del estilista) — ahí sí se cuenta,
+      con ese % exacto.
+
+    Una venta que no tenga ninguna línea comisionable (p. ej. solo la
+    gaseosa) ni suma a "num_servicios" ni aparece en el detalle de este
+    trabajador — no tiene nada que ver con su trabajo de estilista.
     """
     from crud.common import get_utc_boundaries
 
@@ -101,8 +112,8 @@ def get_reporte_comisiones(
         db.query(models.Venta)
         .filter(
             models.Venta.empresa_id == empresa_id,
-            models.Venta.origen == "agendamiento",
             models.Venta.estado_pago == "pagado",
+            models.Venta.operador_id.isnot(None),
         )
         .options(
             joinedload(models.Venta.detalles).joinedload(models.DetalleVenta.producto),
@@ -121,6 +132,16 @@ def get_reporte_comisiones(
     por_trabajador: dict = {}
     detalle_citas: list = []
     for v in q.all():
+        # Solo cuentan los servicios, y los productos que el dueño marcó
+        # explícitamente con su propio % de comisión (ej. el tinte). El
+        # resto de productos (gaseosas, insumos sin marcar) no comisionan.
+        lineas = [
+            d for d in v.detalles
+            if d.producto and (d.producto.es_servicio or d.producto.comision_pct is not None)
+        ]
+        if not lineas:
+            continue
+
         op_id = v.operador_id
         item = por_trabajador.setdefault(op_id, {
             "operador_id": op_id,
@@ -129,18 +150,20 @@ def get_reporte_comisiones(
             "total_ventas": 0.0,
             "comision_total": 0.0,
         })
-        item["num_servicios"] += 1
+        item["num_servicios"] += sum(d.cantidad or 0 for d in lineas)
         item["total_ventas"] += float(v.total or 0)
         comision_venta = 0.0
         servicios_nombres = []
-        for d in v.detalles:
-            pct = d.producto.comision_pct if (d.producto and d.producto.comision_pct is not None) else comision_global
+        for d in lineas:
+            pct = d.producto.comision_pct if d.producto.comision_pct is not None else comision_global
             comision_venta += (d.cantidad or 0) * (d.precio_unitario or 0) * (pct or 0) / 100.0
-            servicios_nombres.append(d.producto.nombre if d.producto else (d.nombre_libre or "—"))
+            servicios_nombres.append(d.producto.nombre)
         item["comision_total"] += comision_venta
 
-        # Detalle cita por cita — para que el dueño pueda ver una a una, no
-        # solo el acumulado por trabajador.
+        # Detalle venta por venta — para que el dueño pueda ver una a una, no
+        # solo el acumulado por trabajador. "total" es el valor completo del
+        # ticket (incluye lo no comisionable, para dar contexto); "comision"
+        # sale solo de las líneas comisionables de arriba.
         detalle_citas.append({
             "venta_id":        v.id,
             "fecha":           v.fecha.isoformat() if v.fecha else None,
@@ -158,7 +181,7 @@ def get_reporte_comisiones(
         trabajadores.append({
             "operador_id":    t["operador_id"],
             "nombre":         t["nombre"],
-            "num_servicios":  t["num_servicios"],
+            "num_servicios":  int(round(t["num_servicios"])),
             "total_ventas":   round(t["total_ventas"], 2),
             "comision_total": round(t["comision_total"], 2),
             "porcentaje":     round(t["total_ventas"] / total_ventas_global * 100, 1) if total_ventas_global > 0 else 0.0,

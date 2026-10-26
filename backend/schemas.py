@@ -332,6 +332,13 @@ class ProductoBase(BaseModel):
     # Ej: caja de 4 → 4.0 | paquete de 28 lonchas → 28.0 | por unidad → 1.0 (default)
     unidades_por_empaque: Optional[float] = 1.0
 
+    # % de comisión para quien lo vendió ("Atendido por" en Ventas). None =
+    # usa el global del módulo correspondiente si es un servicio (Lavadero,
+    # Agendamiento); un producto físico sin este valor NO comisiona por
+    # defecto — se usa para casos como un tinte, que es insumo pero también
+    # representa trabajo del estilista.
+    comision_pct: Optional[float] = None
+
     # ✅ FIX: La BD guarda esto como string JSON, Pydantic necesita lista
     @validator('imagenes', pre=True, always=True)
     def parse_imagenes(cls, v):

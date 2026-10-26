@@ -85,7 +85,7 @@ export default function AgendamientoReporte() {
         params: { fecha_inicio: start, fecha_fin: end },
       });
       setReportData(data);
-      if (!(data.trabajadores || []).length) toast.info('No hay citas cobradas en el período seleccionado.');
+      if (!(data.trabajadores || []).length) toast.info('No hay servicios vendidos en el período seleccionado.');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al generar el reporte.');
     } finally {
@@ -125,14 +125,14 @@ export default function AgendamientoReporte() {
                 moduleColor={ACCENT}
                 steps={[
                   { title: 'Selecciona el período', description: 'Usa los botones rápidos o el selector de fechas.' },
-                  { title: 'Consulta por trabajador', description: 'Muestra cuántas citas cobró cada trabajador y cuánto se le debe de comisión.' },
-                  { title: 'Configura la comisión', description: 'Ve a Config Agendamiento para definir el % global o por servicio.' },
+                  { title: 'Consulta por trabajador', description: 'Muestra cuántos servicios hizo cada trabajador y cuánto se le debe de comisión.' },
+                  { title: 'Configura la comisión', description: 'Ve a Config Agendamiento para definir el % global, o ponle un % a un servicio o producto específico (ej. un tinte).' },
                   { title: 'Exporta los datos', description: 'Usa el botón CSV para descargar el reporte.' },
                 ]}
                 faqItems={[
-                  { q: '¿Qué citas cuenta este reporte?', a: 'Solo las citas de Agendamiento que ya fueron cobradas (convertidas en venta pagada). No mezcla ventas de otros módulos del mismo trabajador.' },
-                  { q: '¿Cómo se calcula la comisión?', a: 'Se aplica el % del servicio si lo tiene configurado; si no, el % global de Config Agendamiento.' },
-                  { q: '¿Por qué no aparece un trabajador?', a: 'Solo aparecen quienes tengan al menos una cita cobrada en el período.' },
+                  { q: '¿Qué ventas cuenta este reporte?', a: 'Cualquier venta pagada con un trabajador asignado como "Atendido por" — venga o no de una cita agendada. No hace falta usar el calendario para que cuente.' },
+                  { q: '¿Cómo se calcula la comisión?', a: 'Los servicios siempre comisionan: su % propio si lo tienen, si no el % global. Los productos físicos (una gaseosa) NO comisionan por defecto — solo si tú les pones un % propio en Productos (ej. un tinte que también es mano de obra del estilista).' },
+                  { q: '¿Por qué no aparece un trabajador?', a: 'Solo aparecen quienes tengan al menos una venta con algo comisionable (un servicio, o un producto con % propio) en el período.' },
                 ]}
               />
             </Box>
@@ -195,7 +195,7 @@ export default function AgendamientoReporte() {
               <KpiCard label="Trabajadores" value={resumen.num_trabajadores ?? rows.length} icon={<Groups />} color={ACCENT} />
             </Grid>
             <Grid item xs={6} sm={3}>
-              <KpiCard label="Citas cobradas" value={resumen.total_servicios ?? 0} icon={<EventNote />} color={ACCENT} />
+              <KpiCard label="Servicios vendidos" value={resumen.total_servicios ?? 0} icon={<EventNote />} color={ACCENT} />
             </Grid>
             <Grid item xs={6} sm={3}>
               <KpiCard label="Total en ventas" value={formatCurrency(resumen.total_ventas ?? 0)} icon={<AttachMoney />} color={GREEN} />
@@ -224,7 +224,7 @@ export default function AgendamientoReporte() {
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Box sx={{ textAlign: 'center' }}>
-                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Citas</Typography>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>Servicios</Typography>
                     <Typography sx={{ fontWeight: 900, fontSize: 22, color: ACCENT, lineHeight: 1 }}>{topWorker.num_servicios}</Typography>
                   </Box>
                   <Box sx={{ textAlign: 'center' }}>
@@ -242,7 +242,7 @@ export default function AgendamientoReporte() {
             <Paper sx={{ p: 5, borderRadius: 3, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
               <EventNote sx={{ fontSize: 48, color: 'action.disabled', mb: 1 }} />
               <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
-                No hay citas cobradas para este período.
+                No hay servicios vendidos para este período.
               </Typography>
             </Paper>
           ) : (
@@ -250,7 +250,7 @@ export default function AgendamientoReporte() {
               <Table>
                 <TableHead>
                   <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    {['#', 'Trabajador', 'Citas', 'Total ventas', 'Comisión', '% Part.'].map(h => (
+                    {['#', 'Trabajador', 'Servicios', 'Total ventas', 'Comisión', '% Part.'].map(h => (
                       <TableCell key={h} sx={{ fontWeight: 700, fontSize: 11, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, py: 1.5 }}>
                         {h}
                       </TableCell>
@@ -327,7 +327,7 @@ export default function AgendamientoReporte() {
                   endIcon={detalleAbierto ? <ExpandLess /> : <ExpandMore />}
                   sx={{ textTransform: 'none', fontWeight: 700, color: ACCENT }}
                 >
-                  {detalleAbierto ? 'Ocultar detalle' : `Ver detalle de las ${detalleFiltrado.length} citas`}
+                  {detalleAbierto ? 'Ocultar detalle' : `Ver detalle de las ${detalleFiltrado.length} servicios`}
                   {trabajadorFiltro != null ? ` de ${rows.find(r => r.operador_id === trabajadorFiltro)?.nombre || ''}` : ''}
                 </Button>
                 {trabajadorFiltro != null && (
@@ -341,7 +341,7 @@ export default function AgendamientoReporte() {
                 )}
               </Stack>
               <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 1.5 }}>
-                Haz clic en un trabajador de la tabla de arriba para ver solo sus citas.
+                Haz clic en un trabajador de la tabla de arriba para ver solo sus servicios.
               </Typography>
 
               {detalleAbierto && (
