@@ -253,8 +253,16 @@ def get_stats(db: Session, empresa_id: int) -> dict:
 # saliente no solicitado suma al patrón que WhatsApp castiga restringiendo el
 # número. Se avisa cuando el pedido sale y cuando llega: los dos momentos en
 # los que el cliente sí necesita estar pendiente.
+#
+# El texto de "enviado" depende del tipo de entrega: para domicilio el
+# pedido efectivamente va en camino, pero para recoger en tienda NO — avisar
+# "va en camino" a alguien que pidió recoger en el local confunde al cliente
+# (llega a esperar un domiciliario que nunca sale).
 ESTADOS_QUE_AVISAN = {
-    "enviado":   "🛵 ¡Tu pedido *#{numero}* ya va en camino! Pronto lo recibes.\n\n_Este es un mensaje automático, no es necesario que respondas._",
+    "enviado": {
+        "domicilio": "🛵 ¡Tu pedido *#{numero}* ya va en camino! Pronto lo recibes.\n\n_Este es un mensaje automático, no es necesario que respondas._",
+        "tienda":    "📦 ¡Tu pedido *#{numero}* ya está listo para recoger en tienda!\n\n_Este es un mensaje automático, no es necesario que respondas._",
+    },
     "entregado": "✅ Tu pedido *#{numero}* fue entregado. ¡Gracias por tu compra!\n\n_Este es un mensaje automático, no es necesario que respondas._",
 }
 
@@ -271,6 +279,10 @@ def _avisar_cambio_estado(db: Session, pedido: models.PedidoVirtual, nuevo_estad
     plantilla = ESTADOS_QUE_AVISAN.get(nuevo_estado)
     if not plantilla:
         return
+    if isinstance(plantilla, dict):
+        tipo_entrega = (pedido.tipo_entrega or "tienda")
+        tipo_entrega = tipo_entrega.value if hasattr(tipo_entrega, "value") else tipo_entrega
+        plantilla = plantilla.get(tipo_entrega) or plantilla.get("tienda")
 
     try:
         empresa = db.query(models.Empresa).filter(
@@ -460,6 +472,29 @@ def build_whatsapp_url(pedido: models.PedidoVirtual, mensaje: str) -> str:
     if len(telefono) == 10 and not telefono.startswith("57"):
         telefono = "57" + telefono
     return f"https://wa.me/{telefono}?text={urllib.parse.quote(mensaje)}"
+
+
+def enviar_whatsapp(db: Session, pedido: models.PedidoVirtual, mensaje: str) -> dict:
+    """
+    Manda el mensaje al cliente del pedido. Si la empresa ya tiene su WhatsApp
+    vinculado (Evolution API), se envía directo desde ahí — el empleado no
+    tiene que abrir su propio WhatsApp Web ni usar su número personal, que es
+    justamente lo que ya resolvimos para los avisos automáticos de cambio de
+    estado. Si no hay WhatsApp vinculado (o el envío falla), se cae al link
+    de wa.me de siempre para que lo mande manualmente.
+    """
+    empresa = db.query(models.Empresa).filter(models.Empresa.id == pedido.empresa_id).first()
+    if empresa and empresa.whatsapp_instancia and pedido.celular_cliente:
+        from services import evolution_service as evo
+        if evo.is_configured():
+            r = evo.enviar_texto(empresa.id, pedido.celular_cliente, mensaje)
+            if not r.get("error"):
+                return {"enviado": True, "via": "evolution"}
+            logger.info(
+                "Envío directo de WhatsApp falló (pedido %s, empresa %s): %s — se usa wa.me como respaldo",
+                pedido.id, empresa.id, r["error"],
+            )
+    return {"enviado": False, "via": "wa_web", "url": build_whatsapp_url(pedido, mensaje)}
 
 
 # ─── STOCK HELPERS ────────────────────────────────────────────────────────────

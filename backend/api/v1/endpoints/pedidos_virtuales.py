@@ -87,7 +87,7 @@ def convertir_a_venta(
 
 
 @router.post("/{pedido_id}/whatsapp")
-def get_whatsapp_url(
+def enviar_whatsapp(
     pedido_id: int,
     payload: schemas.PedidoWhatsAppMessage,
     db: Session = Depends(get_db),
@@ -96,5 +96,4 @@ def get_whatsapp_url(
     pedido = crud_pv.get_pedido(db, pedido_id, current_user.empresa_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    url = crud_pv.build_whatsapp_url(pedido, payload.mensaje)
-    return {"url": url}
+    return crud_pv.enviar_whatsapp(db, pedido, payload.mensaje)

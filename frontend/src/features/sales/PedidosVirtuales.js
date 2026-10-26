@@ -467,9 +467,10 @@ const CancelDialog = ({ open, onClose, pedido, onSuccess }) => {
   const [motivo, setMotivo] = useState('');
   const [loading, setLoading] = useState(false);
   const [waUrl, setWaUrl] = useState('');
+  const [waEnviado, setWaEnviado] = useState(false);
   const [done, setDone] = useState(false);
 
-  useEffect(() => { if (open) { setMotivo(''); setDone(false); setWaUrl(''); } }, [open]);
+  useEffect(() => { if (open) { setMotivo(''); setDone(false); setWaUrl(''); setWaEnviado(false); } }, [open]);
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -477,7 +478,12 @@ const CancelDialog = ({ open, onClose, pedido, onSuccess }) => {
       await apiClient.patch(`/pedidos-virtuales/${pedido.id}/estado`, { estado: 'cancelado', motivo_cancelacion: motivo });
       const msg = `Hola ${pedido.nombre_cliente} 👋\n\nLamentamos informarte que tu *Pedido #${pedido.numero_pedido ?? pedido.id}* ha sido *cancelado*.${motivo ? `\n\n📝 Motivo: ${motivo}` : ''}\n\n¿Tienes alguna pregunta? Estamos para ayudarte. 🙏`;
       const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/whatsapp`, { mensaje: msg });
-      setWaUrl(res.data.url);
+      if (res.data.enviado) {
+        setWaEnviado(true);
+        toast.success('Cliente notificado por WhatsApp');
+      } else {
+        setWaUrl(res.data.url);
+      }
       setDone(true);
       onSuccess();
       toast.success('Pedido cancelado');
@@ -499,15 +505,28 @@ const CancelDialog = ({ open, onClose, pedido, onSuccess }) => {
             </Box>
           </DialogTitle>
           <DialogContent>
-            <Typography fontSize={13} color="text.secondary">¿Deseas notificar al cliente por WhatsApp?</Typography>
+            <Typography fontSize={13} color="text.secondary">
+              {waEnviado
+                ? 'Ya se le avisó al cliente por WhatsApp automáticamente.'
+                : '¿Deseas notificar al cliente por WhatsApp?'}
+            </Typography>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-            <Button onClick={onClose} sx={{ borderRadius: 2 }}>No, gracias</Button>
-            <Button variant="contained" onClick={() => { window.open(waUrl, '_blank'); onClose(); }}
-              startIcon={<WhatsApp />}
-              sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#128C7E' }, borderRadius: 2, fontWeight: 700 }}>
-              Notificar por WhatsApp
-            </Button>
+            {waEnviado ? (
+              <Button variant="contained" onClick={onClose} fullWidth
+                sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#128C7E' }, borderRadius: 2, fontWeight: 700 }}>
+                Listo
+              </Button>
+            ) : (
+              <>
+                <Button onClick={onClose} sx={{ borderRadius: 2 }}>No, gracias</Button>
+                <Button variant="contained" onClick={() => { window.open(waUrl, '_blank'); onClose(); }}
+                  startIcon={<WhatsApp />}
+                  sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#128C7E' }, borderRadius: 2, fontWeight: 700 }}>
+                  Notificar por WhatsApp
+                </Button>
+              </>
+            )}
           </DialogActions>
         </>
       ) : (
@@ -647,8 +666,13 @@ const WADialog = ({ open, onClose, pedido }) => {
     setLoading(true);
     try {
       const res = await apiClient.post(`/pedidos-virtuales/${pedido.id}/whatsapp`, { mensaje: msg });
-      window.open(res.data.url, '_blank'); onClose();
-    } catch { toast.error('Error al generar el enlace'); }
+      if (res.data.enviado) {
+        toast.success('Mensaje enviado por WhatsApp');
+      } else {
+        window.open(res.data.url, '_blank');
+      }
+      onClose();
+    } catch { toast.error('Error al enviar el mensaje'); }
     finally { setLoading(false); }
   };
 
@@ -667,7 +691,8 @@ const WADialog = ({ open, onClose, pedido }) => {
         <TextField fullWidth multiline rows={6} value={msg} onChange={e => setMsg(e.target.value)}
           placeholder="Escribe el mensaje..." sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontFamily: 'monospace', fontSize: 13 } }} />
         <Typography fontSize={11} color="text.secondary" sx={{ mt: 1 }}>
-          Se abrirá WhatsApp Web con este mensaje listo para enviar.
+          Si la empresa tiene WhatsApp vinculado, se envía directo desde aquí.
+          Si no, se abrirá WhatsApp Web con el mensaje listo.
         </Typography>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5 }}>
@@ -675,7 +700,7 @@ const WADialog = ({ open, onClose, pedido }) => {
         <Button variant="contained" onClick={handleSend} disabled={loading || !msg.trim()}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <WhatsApp />}
           sx={{ bgcolor: '#25D366', '&:hover': { bgcolor: '#128C7E' }, borderRadius: 2, fontWeight: 700 }}>
-          Abrir WhatsApp
+          Enviar
         </Button>
       </DialogActions>
     </Dialog>
