@@ -381,7 +381,14 @@ def calcular_disponibilidad(db: Session, empresa_id: int, producto_id: int, dia:
     while cursor + paso <= t_cierre:
         fin = cursor + paso
         en_descanso = descanso is not None and _solapa(cursor, fin, descanso[0], descanso[1])
-        if fin > ahora and not en_descanso:
+        # Comparar el INICIO contra "ahora", no el fin: con "fin > ahora" una
+        # franja que ya empezó (ej. 2:00-2:20pm) seguía ofreciéndose hasta las
+        # 2:20pm aunque ya hubieran pasado 17 minutos de las 2:00pm.
+        if cursor >= ahora and not en_descanso:
+            # Una franja por CADA trabajador libre a esa hora, no solo el
+            # primero — antes el "break" ocultaba a los demás y el cliente
+            # terminaba agendado con quien quedara de primero en la lista,
+            # sin poder elegir.
             for t in trabajadores:
                 libre = all(
                     not _solapa(cursor, fin, _aware(c.fecha_inicio), _aware(c.fecha_fin))
@@ -394,7 +401,6 @@ def calcular_disponibilidad(db: Session, empresa_id: int, producto_id: int, dia:
                         "user_id": t.id,
                         "trabajador_nombre": nombres[t.id],
                     })
-                    break
         cursor += paso
 
     return {"fecha": dia, "producto_id": producto_id, "duracion_minutos": duracion, "franjas": franjas}

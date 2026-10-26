@@ -240,6 +240,11 @@ function AgendarPublicoInner() {
                   <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 1, display: 'flex', alignItems: 'center', gap: 0.6 }}>
                     <AccessTime sx={{ fontSize: 17, color: TEAL }} /> Horarios disponibles
                   </Typography>
+                  {!loadingFranjas && franjas.length > 0 && (
+                    <Typography sx={{ fontSize: 11.5, color: 'text.secondary', mb: 1 }}>
+                      Si hay varias personas disponibles a la misma hora, puedes elegir con quién prefieres.
+                    </Typography>
+                  )}
                   {loadingFranjas ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
                       <CircularProgress size={24} sx={{ color: TEAL }} />
@@ -254,9 +259,12 @@ function AgendarPublicoInner() {
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, maxHeight: 220, overflowY: 'auto', p: 0.5 }}>
                       {franjas.map((f, i) => {
                         const sel = slot && slot.inicio === f.inicio && slot.user_id === f.user_id;
+                        const hayVariosEnEstaHora = franjas.filter(o => o.inicio === f.inicio).length > 1;
                         return (
                           <Tooltip key={i} title={`Atiende: ${f.trabajador_nombre}`} arrow>
-                            <Chip label={fmtHora(f.inicio)} onClick={() => setSlot(f)} sx={{
+                            <Chip
+                              label={hayVariosEnEstaHora ? `${fmtHora(f.inicio)} · ${f.trabajador_nombre}` : fmtHora(f.inicio)}
+                              onClick={() => setSlot(f)} sx={{
                               fontWeight: 700, cursor: 'pointer', px: 0.5, fontSize: 13.5,
                               bgcolor: sel ? TEAL : '#fff', color: sel ? '#fff' : TEAL_DARK,
                               border: `1.5px solid ${sel ? TEAL : `${TEAL}44`}`,
