@@ -79,6 +79,13 @@ def revisar_conexiones(db: Session) -> Dict[str, int]:
     revisadas = caidas = avisos = 0
 
     for empresa in empresas:
+        # Si la empresa ya no tiene el módulo de WhatsApp habilitado/visible,
+        # no tiene sentido seguir avisándole que su WhatsApp está caído: ni
+        # siquiera puede ver la pantalla para reconectarlo.
+        habilitados = empresa.modulos_habilitados or []
+        if "/whatsapp-bot" not in habilitados:
+            continue
+
         revisadas += 1
         data = evo.estado_conexion(empresa.id)
 
